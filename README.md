@@ -4,7 +4,7 @@
 
 **INCLUSIVE** is an accessibility-focused digital platform intended to make learning, information, and career support easier to access for learners and underserved communities.
 
-The current application combines a course-grounded assistant, English and Amharic chat, optional Addis AI speech services on the web, career-support workflows, and human assistance through a web interface, Telegram text bot, and SMS text route. It searches curated content before answering course questions and offers human support when its knowledge base cannot support a reliable answer.
+The current application combines a course-grounded assistant, multilingual web chat, optional Addis AI speech services on the web, career-support workflows, and human assistance through a web interface, Telegram text bot, and SMS text route. It searches curated content before answering course questions and offers human support when its knowledge base cannot support a reliable answer.
 
 > **Our guiding principle: Reliable information first. AI assistance second. Human support whenever needed.**
 
@@ -30,7 +30,7 @@ INCLUSIVE brings together curated educational content, accessible web interactio
 
 - Searches the curated course knowledge base before generating an answer.
 - Returns source citations for answers grounded in retrieved course material.
-- Supports English and Amharic course chat.
+- The web widget can request replies in English, Amharic, Tigrinya, Afaan Oromo, Somali, or Arabic. Course sources remain reviewed in English and Amharic.
 - Offers a human-support option when relevant supporting content is unavailable.
 - Uses a built-in offline provider as a no-network fallback when matching content exists.
 
@@ -38,22 +38,22 @@ INCLUSIVE brings together curated educational content, accessible web interactio
 
 Course-chat and speech-service languages are different capabilities:
 
-- **Current course chat and reviewed content:** English and Amharic.
+- **Web chat reply languages:** English (`en`), Amharic (`am`), Tigrinya (`ti`), Afaan Oromo (`om`), Somali (`so`), and Arabic (`ar`), using the selected language when the configured AI provider supports it.
+- **Reviewed course content:** English and Amharic. Replies in other languages are generated from retrieved source passages and retain citations; their wording has not been independently reviewed.
 - **Addis Scribe speech-to-text:** English (`en`), Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`).
 - **Addis Voices text-to-speech:** Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`), subject to available voices and service configuration.
-- **Future course/interface languages:** Afaan Oromo, Tigrinya, Somali, and Arabic require translated interface text, reviewed course content, and quality checks before being described as supported chat languages.
-
-Speech recognition in a language does not mean the course assistant can answer in that language. Afaan Oromo and Tigrinya transcripts can be reviewed, but course chat currently supports English and Amharic.
+Speech and chat are separate capabilities. Addis speech-to-text supports English, Amharic, Afaan Oromo, and Tigrinya; Somali and Arabic remain available for typed chat only. Addis text-to-speech support is limited to Amharic, Afaan Oromo, and Tigrinya.
 
 ### 2.3 AI Answer Providers
 
 Answer providers are configurable through `AI_PROVIDERS`; they are not tied to Addis AI speech:
 
-- **Ollama:** first provider in the example `.env.example` configuration (`ollama,offline`).
-- **Gemini and Groq:** optional cloud providers, enabled by adding them to `AI_PROVIDERS` and configuring their keys.
+- **Ollama:** local provider fallback after Gemini in the example `.env.example` configuration.
+- **Gemini:** first in the sample provider order; configure `GEMINI_API_KEY` to use it. It is skipped when the key is empty.
+- **Groq:** optional cloud provider, enabled by adding it to `AI_PROVIDERS` and configuring its key.
 - **Offline:** always included as a final passage-based fallback.
 
-For example, `AI_PROVIDERS=groq,offline` makes Groq the first configured answer provider. Provider choice does not bypass course retrieval or make unsupported course answers reliable.
+For example, `AI_PROVIDERS=gemini,ollama,offline` tries Gemini first when `GEMINI_API_KEY` is configured, then Ollama, then offline. `AI_PROVIDERS=groq,offline` makes Groq the first configured answer provider. Provider choice does not bypass course retrieval or make unsupported course answers reliable.
 
 ### 2.4 Addis AI Speech-to-Text and Text-to-Speech
 
@@ -135,7 +135,7 @@ flowchart TD
 ### Core workflow
 
 1. A learner sends a question through a supported channel.
-2. The application detects or uses the selected English/Amharic chat language.
+2. The application detects the question language or uses the language selected in the web widget.
 3. For course questions, retrieval searches the curated knowledge base.
 4. If relevant passages are found, the configured answer provider generates a grounded response; citations point to the supporting content.
 5. If relevant content is not found, the assistant offers human support instead of asking the model for an unsupported answer.
@@ -218,13 +218,13 @@ Keep `.env` private. Never commit API keys, Telegram tokens, or other credential
 
 ### Optional local Ollama setup
 
-The sample `.env.example` uses Ollama first. Install Ollama and pull its configured example model if using that provider:
+The sample `.env.example` tries Gemini first, then Ollama. Configure `GEMINI_API_KEY` to enable Gemini; otherwise it is skipped. Install Ollama and pull its configured example model if using that provider:
 
 ```sh
 ollama pull aya-expanse:8b
 ```
 
-To use Groq first instead, set `AI_PROVIDERS=groq,offline` and configure `GROQ_API_KEY`. The offline provider is always appended as the final fallback.
+To use local Ollama first, set `AI_PROVIDERS=ollama,gemini,offline`. To use Groq first instead, set `AI_PROVIDERS=groq,offline` and configure `GROQ_API_KEY`. The offline provider is always appended as the final fallback.
 
 ### Start the server
 
@@ -261,7 +261,7 @@ See [.env.example](.env.example) for the full list and defaults.
 | Variable | Purpose |
 | --- | --- |
 | `PORT` | API port; defaults to `8787`. |
-| `AI_PROVIDERS` | Answer-provider order; sample default is `ollama,offline`. Offline is always added as fallback. |
+| `AI_PROVIDERS` | Answer-provider order; sample default is `gemini,ollama,offline`. Offline is always added as fallback. |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Local Ollama endpoint and model. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Optional Gemini credentials and model. |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Optional Groq credentials and model. |
@@ -387,7 +387,7 @@ The core suite covers retrieval, chat grounding, provider fallback, HTTP routes,
 - Telegram voice-message processing is not implemented; Telegram is text-based.
 - SMS is text-only and does not use Addis TTS.
 - Addis key presence does not confirm validity or available balance. Speech calls may incur costs; app rate limits are not a budget cap.
-- Speech input supports more languages than course chat; course-grounded chat currently supports English and Amharic only.
+- Reviewed course material is currently available in English and Amharic; generated replies in other selected languages are not independently reviewed.
 - Screen sharing uses WebRTC with STUN only and may fail on some networks.
 - Automated accessibility scans do not replace manual testing with assistive technologies and people with varied access needs.
 - Job content is local content; verify that listings and deadlines are current before presenting them as active opportunities.

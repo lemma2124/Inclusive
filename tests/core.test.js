@@ -7,8 +7,9 @@ import { redact } from '../api/lib/redact.js';
 import { createRouter } from '../api/ai/router.js';
 import { createOffline } from '../api/ai/offline.js';
 import { createOllama } from '../api/ai/ollama.js';
+import { createGemini } from '../api/ai/gemini.js';
 import { createAddisSpeech } from '../api/ai/addis-speech.js';
-import { createChat } from '../api/chat.js';
+import { createChat, FALLBACK } from '../api/chat.js';
 import { buildProviders, createApp } from '../api/server.js';
 import { loadConfig } from '../api/lib/config.js';
 import { ProviderError } from '../api/ai/errors.js';
@@ -24,8 +25,12 @@ import { MAX_SPEECH_BYTES, readSpeechUpload } from '../api/speech/upload.js';
 const passages = loadPassages();
 const retriever = new Retriever(passages);
 
-test('detectLang separates Amharic from English', () => {
+test('detectLang recognizes supported chat languages and defaults to English', () => {
   assert.equal(detectLang('ኮርሶችን እንዴት አገኛለሁ?'), 'am');
+  assert.equal(detectLang('ከመይ እየ ኮርስ ዝርከብ?'), 'ti');
+  assert.equal(detectLang('Akkamitti koorsii argachuu danda’a?'), 'om');
+  assert.equal(detectLang('Sidee baan koorso u heli karaa?'), 'so');
+  assert.equal(detectLang('كيف أجد دوراتي؟'), 'ar');
   assert.equal(detectLang('How do I find my courses?'), 'en');
 });
 
@@ -102,6 +107,36 @@ test('router redacts personal data before cloud providers only', async () => {
   assert.ok(!cloud.calls[0].messages[0].content.includes('a@b.com'));
 });
 
+test('Gemini sends the system prompt and chat to the configured model without exposing API keys in errors', async () => {
+  let request;
+  const gemini = createGemini({
+    apiKey: 'test-gemini-secret',
+    model: 'gemini-test',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return Response.json({ candidates: [{ content: { parts: [{ text: 'Grounded answer [1]' }] } }] });
+    }
+  });
+  const out = await gemini.generate({
+    system: 'Reply in Arabic and cite passages.',
+    messages: [{ role: 'user', content: 'How do I find courses?' }]
+  });
+  assert.equal(out.text, 'Grounded answer [1]');
+  assert.equal(request.url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent');
+  assert.equal(request.options.headers['x-goog-api-key'], 'test-gemini-secret');
+  const body = JSON.parse(request.options.body);
+  assert.equal(body.systemInstruction.parts[0].text, 'Reply in Arabic and cite passages.');
+  assert.deepEqual(body.contents[0], { role: 'user', parts: [{ text: 'How do I find courses?' }] });
+
+  const failing = createGemini({
+    apiKey: 'test-gemini-secret',
+    model: 'gemini-test',
+    fetchImpl: async () => new Response('unauthorized', { status: 401 })
+  });
+  await assert.rejects(failing.generate({ system: 's', messages: [] }), (error) =>
+    error.status === 401 && !error.message.includes('test-gemini-secret'));
+});
+
 test('Ollama uses its local OpenAI-compatible endpoint without cloud redaction', async () => {
   let request;
   const ollama = createOllama({
@@ -140,9 +175,19 @@ test('provider factory registers Ollama and always keeps offline fallback', () =
   assert.equal(providers[0].available(), true);
 });
 
-test('default configuration prefers local Ollama and offline fallback', () => {
+test('provider factory enables Gemini from server configuration', () => {
+  const providers = buildProviders({
+    providers: ['gemini'],
+    geminiKey: 'configured-gemini-key',
+    geminiModel: 'gemini-test'
+  });
+  assert.deepEqual(providers.map((provider) => provider.name), ['gemini', 'offline']);
+  assert.equal(providers[0].available(), true);
+});
+
+test('default configuration tries Gemini before local and offline fallbacks', () => {
   const cfg = loadConfig({});
-  assert.deepEqual(cfg.providers, ['ollama', 'offline']);
+  assert.deepEqual(cfg.providers, ['gemini', 'ollama', 'offline']);
   assert.equal(cfg.ollamaBaseUrl, 'http://127.0.0.1:11434/v1');
   assert.equal(cfg.ollamaModel, 'aya-expanse:8b');
 });
@@ -293,6 +338,45 @@ test('chat answers an Amharic question in Amharic', async () => {
   assert.equal(r.citations[0].id, 'am-score');
 });
 
+test('chat preserves each requested language and instructs the provider to answer in that language', async () => {
+  const responses = [];
+  const provider = fakeProvider('gemini', (request) => {
+    responses.push(request.system);
+    return { text: 'A grounded answer [1]' };
+  });
+  const chat = createChat({ retriever, router: createRouter({ providers: [provider] }) });
+  const languages = {
+    en: 'English',
+    am: 'Amharic',
+    ti: 'Tigrinya',
+    om: 'Afaan Oromo',
+    so: 'Somali',
+    ar: 'Arabic'
+  };
+  for (const [lang, languageName] of Object.entries(languages)) {
+    const result = await chat({ message: 'How do I mark a lesson as complete?', lang });
+    assert.equal(result.lang, lang);
+    assert.equal(result.grounded, true);
+    assert.match(responses[responses.length - 1], new RegExp(`Reply only in ${languageName}`));
+  }
+  assert.equal(provider.calls.length, Object.keys(languages).length);
+});
+
+test('chat returns a language-matched human handoff when no course content is found', async () => {
+  const provider = fakeProvider('gemini', () => ({ text: 'must not run' }));
+  const chat = createChat({
+    retriever: { search: () => ({ hits: [], lang: 'en' }) },
+    router: createRouter({ providers: [provider] })
+  });
+  for (const lang of ['ti', 'om', 'so', 'ar']) {
+    const result = await chat({ message: 'unmatched question', lang });
+    assert.equal(result.answer, FALLBACK[lang]);
+    assert.equal(result.lang, lang);
+    assert.equal(result.escalate, true);
+  }
+  assert.equal(provider.calls.length, 0);
+});
+
 const baseCfg = { port: 0, providers: ['offline'], geminiKey: '', groqKey: '', timeoutMs: 500, minCoverage: 0.3, corsOrigin: '*', rateLimitPerMin: 100, handoffRateLimitPerMin: 100, agentKey: 'test-agent-key-123456', contentDir: '' };
 
 async function withServer(cfg, fn, options = {}) {
@@ -349,13 +433,29 @@ test('HTTP: every error uses the same { error: { code, message } } shape', async
 test('widget parses, stays small, and is served safely', async () => {
   const src = readFileSync(new URL('../widget/savanna-assistant.v1.js', import.meta.url), 'utf8');
   assert.doesNotThrow(() => new vm.Script(src), 'widget must be valid JavaScript');
+  const elements = {};
+  const customElements = {
+    get(name) { return elements[name]; },
+    define(name, element) { elements[name] = element; }
+  };
+  vm.runInNewContext(src, {
+    window: { customElements },
+    document: { currentScript: null },
+    HTMLElement: class HTMLElement {}
+  });
+  assert.ok(elements['inclusive-assistant'], 'widget should initialize and register its custom element');
+  assert.ok(elements['savanna-assistant'], 'legacy custom element remains registered');
   assert.ok(src.length < 70 * 1024, 'widget should stay small for 3G');
   assert.match(src, /MediaRecorder/);
   assert.match(src, /data-k="speechLanguage"/);
   assert.match(src, /data-k="cancelRecording"/);
   assert.match(src, /\/v1\/speech\/transcribe/);
   assert.match(src, /\/v1\/speech\/synthesize/);
-  assert.match(src, /speechChatUnsupported/);
+  for (const lang of ['ti', 'om', 'so', 'ar']) {
+    assert.match(src, new RegExp(`data-l="${lang}"`));
+    assert.match(src, new RegExp(`value="${lang}"`));
+  }
+  assert.match(src, /attachShadow\(\{ mode: 'open' \}\)/);
   await withServer(baseCfg, async (base) => {
     const js = await fetch(`${base}/widget/inclusive-assistant.v1.js`);
     assert.equal(js.status, 200);

@@ -1,7 +1,7 @@
 export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 8787,
-    providers: (env.AI_PROVIDERS || 'ollama,offline').split(',').map((s) => s.trim()).filter(Boolean),
+    providers: (env.AI_PROVIDERS || 'gemini,ollama,offline').split(',').map((s) => s.trim()).filter(Boolean),
     ollamaBaseUrl: env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
     ollamaModel: env.OLLAMA_MODEL || 'aya-expanse:8b',
     geminiKey: env.GEMINI_API_KEY || '',
