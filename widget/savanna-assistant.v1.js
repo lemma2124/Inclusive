@@ -376,6 +376,7 @@
     constructor() {
       super();
       this._history = [];
+      this._courseContext = null;
       this._busy = false;
       this._built = false;
       this._rec = null;
@@ -423,6 +424,25 @@
     ask(text) {
       this._q.value = String(text || '');
       return this._send();
+    }
+
+    setCourseContext(context) {
+      if (context === null || context === undefined) {
+        this._courseContext = null;
+        return;
+      }
+      if (!context || typeof context !== 'object' || typeof context.text !== 'string' || !context.text.trim()) {
+        throw new TypeError('Course context must include non-empty text.');
+      }
+      if (Array.from(context.text).length > 1000) {
+        throw new RangeError('Course context must be limited to a relevant excerpt of 1000 characters.');
+      }
+      this._courseContext = {
+        title: typeof context.title === 'string' ? context.title.trim().slice(0, 160) : '',
+        text: context.text.trim(),
+        url: typeof context.url === 'string' ? context.url : '',
+        lang: typeof context.lang === 'string' ? context.lang : 'en'
+      };
     }
 
     _lang() {
@@ -737,7 +757,13 @@
       this._setStatus(this._t('thinking'));
 
       try {
-        var data = await this._call('POST', '/v1/chat', { message: text, lang: lang, history: this._history.slice(-4) }, '', 25000);
+        var request = {
+          message: text,
+          lang: lang,
+          history: this._history.slice(this._courseContext ? -2 : -4)
+        };
+        if (this._courseContext) { request.context = this._courseContext; }
+        var data = await this._call('POST', '/v1/chat', request, '', 25000);
         if (typeof data.answer !== 'string') { throw new Error('bad_response'); }
         var links = (data.citations || []).map(function (c) {
           return { text: c.title, href: self._href(c.url), lang: c.lang };

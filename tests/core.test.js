@@ -318,6 +318,55 @@ test('chat answers with citations when the course covers the question', async ()
   assert.equal(r.escalate, false);
 });
 
+test('chat retrieves host-provided course context and cites its page before calling the provider', async () => {
+  const provider = fakeProvider('gemini', (request) => {
+    assert.equal(request.passages[0].id, 'host-course-context');
+    assert.match(request.system, /select Submit project/);
+    return { text: 'Open the project assessment page and select Submit project. [1]' };
+  });
+  const chat = createChat({ retriever, router: createRouter({ providers: [provider] }) });
+  const result = await chat({
+    message: 'How do I submit my final project?',
+    lang: 'en',
+    context: {
+      title: 'Submitting a project',
+      text: 'To submit your final project in ALX, open the project assessment page, attach the completed repository link, and select Submit project.',
+      url: 'https://alx.example/course/lesson-1?session=private',
+      lang: 'en'
+    }
+  });
+  assert.equal(result.grounded, true);
+  assert.equal(result.citations[0].id, 'host-course-context');
+  assert.equal(result.citations[0].url, 'https://alx.example/course/lesson-1');
+  assert.equal(provider.calls.length, 1);
+});
+
+test('chat validates current-page context and still refuses unrelated questions', async () => {
+  const provider = fakeProvider('gemini', () => ({ text: 'must not run' }));
+  const chat = createChat({ retriever, router: createRouter({ providers: [provider] }) });
+  const context = {
+    title: 'Lesson',
+    text: 'This lesson explains how to submit a project assessment.',
+    lang: 'en'
+  };
+  const result = await chat({ message: 'Who won the world cup?', context });
+  assert.equal(result.grounded, false);
+  assert.equal(provider.calls.length, 0);
+
+  await assert.rejects(
+    chat({ message: 'submit project', context: { ...context, text: 'x'.repeat(4001) } }),
+    (error) => error.status === 413 && error.code === 'course_context_too_large'
+  );
+  await assert.rejects(
+    chat({ message: 'submit project', context: { ...context, url: 'javascript:alert(1)' } }),
+    (error) => error.status === 400 && error.code === 'invalid_course_context'
+  );
+  await assert.rejects(
+    chat({ message: 'submit project', context: { ...context, url: `https://alx.example/${'x'.repeat(1024)}` } }),
+    (error) => error.status === 400 && error.code === 'invalid_course_context'
+  );
+});
+
 test('chat refuses and offers a human, without calling a model, when uncovered', async () => {
   const spy = fakeProvider('gemini', () => ({ text: 'should not be called' }));
   const chat = createChat({ retriever, router: createRouter({ providers: [spy, createOffline()] }) });
@@ -449,6 +498,12 @@ test('widget parses, stays small, and is served safely', async () => {
   });
   assert.ok(elements['inclusive-assistant'], 'widget should initialize and register its custom element');
   assert.ok(elements['savanna-assistant'], 'legacy custom element remains registered');
+  const assistant = Object.create(elements['inclusive-assistant'].prototype);
+  assistant.setCourseContext({ title: 'Lesson', text: 'Lesson excerpt', lang: 'en' });
+  assert.equal(assistant._courseContext.text, 'Lesson excerpt');
+  assistant.setCourseContext(null);
+  assert.equal(assistant._courseContext, null);
+  assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(1001) }), /1000 characters/);
   assert.ok(src.length < 70 * 1024, 'widget should stay small for 3G');
   assert.match(src, /MediaRecorder/);
   assert.match(src, /data-k="speechLanguage"/);
@@ -460,6 +515,8 @@ test('widget parses, stays small, and is served safely', async () => {
     assert.match(src, new RegExp(`value="${lang}"`));
   }
   assert.match(src, /attachShadow\(\{ mode: 'open' \}\)/);
+  assert.match(src, /request\.context = this\._courseContext/);
+  assert.match(src, /setCourseContext\(context\)/);
   await withServer(baseCfg, async (base) => {
     const js = await fetch(`${base}/widget/inclusive-assistant.v1.js`);
     assert.equal(js.status, 200);

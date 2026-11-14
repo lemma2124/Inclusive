@@ -255,6 +255,32 @@ Official references: [Speech-to-Text](https://docs.addisassistant.com/docs/capab
 
 Events (prefix `inclusive-assistant:`): `ready`, `answer`, `error`, `escalate` (cancelable), `handoff`, `accommodation`. The former `savanna-assistant` custom element, asset URL, and event prefix remain supported as backward-compatible aliases.
 
+### Supplying the current course lesson
+
+The widget cannot infer ALX lesson content from the INCLUSIVE server. Add a small host-page bridge using the real ALX selectors for the visible lesson title and text:
+
+```js
+(async function connectCurrentLesson() {
+  await customElements.whenDefined('inclusive-assistant');
+  const assistant = document.querySelector('inclusive-assistant');
+  const lesson = document.querySelector('[REPLACE_WITH_LESSON_CONTENT_SELECTOR]');
+  const title = document.querySelector('[REPLACE_WITH_LESSON_TITLE_SELECTOR]');
+  if (!assistant) return;
+  if (!lesson) {
+    assistant.setCourseContext(null);
+    return;
+  }
+  assistant.setCourseContext({
+    title: title ? title.innerText : document.title,
+    text: lesson.innerText,
+    url: location.origin + location.pathname,
+    lang: (document.documentElement.lang || 'en').slice(0, 2)
+  });
+})();
+```
+
+Replace both selectors with selectors confirmed on the ALX page, and call `setCourseContext()` again after client-side lesson navigation. It accepts a relevant excerpt up to 1,000 characters in English or Amharic; only a matching excerpt is passed to the answer provider and cited. Do not send grades, learner details, hidden page content, or material you are not authorized to share. Add the ALX site origin to the API's `CORS_ORIGIN` allowlist. On Render, set `AI_PROVIDERS=gemini,ollama,offline` and `GEMINI_API_KEY` in the service environment; never put the key in this bridge.
+
 ## 8. AI providers and grounded answers
 
 Course passage retrieval happens before any AI call. If no relevant passage is found, the assistant does not call a model and instead offers human help. When a passage is found, the configured providers can phrase a grounded answer; the built-in offline provider is the final fallback and can run without external API keys.

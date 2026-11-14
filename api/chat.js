@@ -9,6 +9,64 @@ const LANG_NAME = {
   ar: 'Arabic (العربية)'
 };
 const SUPPORTED_LANGUAGES = new Set(Object.keys(LANG_NAME));
+const MAX_COURSE_CONTEXT_BYTES = 4000;
+
+function contextError(message, status = 400, code = 'invalid_course_context') {
+  return Object.assign(new Error(message), { status, code });
+}
+
+function normalizeCourseContext(context) {
+  if (context === undefined || context === null) return null;
+  if (typeof context !== 'object' || Array.isArray(context)) {
+    throw contextError('Course context must be an object.');
+  }
+  if (typeof context.text !== 'string' || !context.text.trim()) {
+    throw contextError('Course context text is required.');
+  }
+
+  const text = context.text.trim();
+  if (Buffer.byteLength(text, 'utf8') > MAX_COURSE_CONTEXT_BYTES) {
+    throw contextError('Course context is too large. Send a shorter lesson excerpt.', 413, 'course_context_too_large');
+  }
+  if (context.title !== undefined && typeof context.title !== 'string') {
+    throw contextError('Course context title must be text.');
+  }
+  if (context.url !== undefined && typeof context.url !== 'string') {
+    throw contextError('Course context URL must be text.');
+  }
+  if (context.url && Buffer.byteLength(context.url, 'utf8') > 1024) {
+    throw contextError('Course context URL is too long.');
+  }
+
+  const lang = context.lang === undefined ? 'en' : String(context.lang).toLowerCase().slice(0, 2);
+  if (!['en', 'am'].includes(lang)) {
+    throw contextError('Course context language must be English or Amharic.', 422, 'unsupported_course_context_language');
+  }
+
+  let url = '';
+  if (context.url) {
+    let parsed;
+    try { parsed = new URL(context.url); }
+    catch { throw contextError('Course context URL must be an absolute HTTP or HTTPS URL.'); }
+    const localHttp = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+    if ((!['https:', 'http:'].includes(parsed.protocol) || (parsed.protocol === 'http:' && !localHttp)) ||
+        parsed.username || parsed.password) {
+      throw contextError('Course context URL must use HTTPS and cannot include credentials.');
+    }
+    parsed.search = '';
+    parsed.hash = '';
+    url = parsed.toString();
+  }
+
+  const title = typeof context.title === 'string' ? context.title.trim().slice(0, 160) : '';
+  return {
+    id: 'host-course-context',
+    lang,
+    title: title || 'Current course page',
+    text,
+    url
+  };
+}
 
 export const FALLBACK = {
   en: 'I can only answer from your course materials, and I could not find an answer to that. You can ask in different words, or ask a person for help.',
@@ -35,12 +93,17 @@ export function buildSystemPrompt(lang, passages) {
 }
 
 export function createChat({ retriever, router, minCoverage = 0.3 }) {
-  return async function chat({ message, lang, history = [] }) {
+  return async function chat({ message, lang, history = [], context }) {
     const asked = String(message || '').trim().slice(0, 1000);
     if (!asked) throw Object.assign(new Error('message is required'), { status: 400, code: 'message_required' });
     const learnerLang = SUPPORTED_LANGUAGES.has(lang) ? lang : detectLang(asked);
+    const courseContext = normalizeCourseContext(context);
 
-    const { hits, lang: contentLang } = retriever.search(asked, learnerLang, { limit: 3, minCoverage });
+    const { hits, lang: contentLang } = retriever.search(asked, learnerLang, {
+      limit: 3,
+      minCoverage,
+      extraPassages: courseContext ? [courseContext] : []
+    });
     if (!hits.length) {
       // Nothing in the course covers this: do not call a model, offer a human.
       return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: 'none', lang: learnerLang };
