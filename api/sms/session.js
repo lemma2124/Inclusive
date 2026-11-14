@@ -5,7 +5,7 @@ import { detectLang } from '../retrieval/tokenize.js';
 // gateway and any phone, no special characters required.
 const STRINGS = {
     en: {
-        welcome: 'Hi! Ask a question about your course. Reply HUMAN for a person, JOBS for job alerts, ACCOMMODATION for interview help, EN or AM to change language.',
+        welcome: 'Welcome to INCLUSIVE! Ask a question about your course. Reply HUMAN for a person, JOBS for job alerts, ACCOMMODATION for interview help, EN or AM to change language.',
         consent: 'A person can help you. They will see your questions and answers from this chat. Do not share passwords or ID numbers. Reply YES to continue, or anything else to cancel.',
         cancelled: 'OK. You can keep asking questions.',
         waiting: 'Request sent. Please wait for a person. What you text now goes to them. Reply END to stop.',
@@ -24,7 +24,7 @@ const STRINGS = {
         accommodationWaiting: 'Your request was sent to a person. They may text you here. Reply END to stop.'
     },
     am: {
-        welcome: 'ሰላም! ስለ ኮርስዎ ይጠይቁ። ሰው ለማግኘት HUMAN፣ ለስራ ማስታወቂያ JOBS፣ ለቃለ መጠይቅ ድጋፍ ACCOMMODATION፣ ቋንቋ ለመቀየር EN ወይም AM ይላኩ።',
+        welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! ስለ ኮርስዎ ይጠይቁ። ሰው ለማግኘት HUMAN፣ ለስራ ማስታወቂያ JOBS፣ ለቃለ መጠይቅ ድጋፍ ACCOMMODATION፣ ቋንቋ ለመቀየር EN ወይም AM ይላኩ።',
         consent: 'አንድ ሰው ሊረዳዎት ይችላል። የዚህን ውይይት ጥያቄና መልስ ያያል። የይለፍ ቃል ወይም መታወቂያ ቁጥር አይላኩ። ለመቀጠል YES ይላኩ፣ ለመሰረዝ ሌላ ነገር ይላኩ።',
         cancelled: 'እሺ። መጠየቅ መቀጠል ይችላሉ።',
         waiting: 'ጥያቄው ተልኳል። ሰው እስኪመጣ ይጠብቁ። የሚልኩት ለእሱ ይደርሳል። ለማቆም END ይላኩ።',

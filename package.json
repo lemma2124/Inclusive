@@ -1,7 +1,7 @@
 {
-  "name": "savanna-assistant",
+  "name": "inclusive-assistant",
   "version": "0.1.0",
-  "description": "Accessible multilingual (Amharic/English) course assistant for Savanna. Zero dependencies.",
+  "description": "Accessible multilingual (Amharic/English) learning and career-support platform.",
   "type": "module",
   "engines": {
     "node": ">=20.12"

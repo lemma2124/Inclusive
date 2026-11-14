@@ -1,4 +1,4 @@
-# Savanna Assistant
+# INCLUSIVE
 
 A bilingual (English and Amharic) course assistant for learners. It answers questions from course content with sources, hands over to a real person on request, and offers a career gateway (job alerts and interview accommodations). It works on the web, on Telegram and by SMS. Vanilla JavaScript and Node, no front-end framework, no database.
 
@@ -99,7 +99,7 @@ All settings are in `.env`. Copy `.env.example` and edit it.
 ## 4. Architecture
 
 ```
-Web widget (<savanna-assistant>) --+
+Web widget (<inclusive-assistant>) --+
 Telegram bot (telegram/bot.js) ----+--> API server (api/server.js)
 SMS gateway -----------------------+        |
                                             +-- chat + retrieval over content/*.json
@@ -119,7 +119,7 @@ Support person --> /agent console --> /v1/agent/* (Bearer AGENT_KEY)
 | `api/sms/session.js` | SMS conversation logic |
 | `api/jobs/` | Job subscriptions, Telegram sender, alert broadcast |
 | `content/` | Knowledge base (course content, `jobs-en.json`, `jobs-am.json`) |
-| `widget/savanna-assistant.v1.js` | Web component, version 1.3.0 |
+| `widget/savanna-assistant.v1.js` | Widget implementation file; the branded public element is `<inclusive-assistant>`. |
 | `widget/agent.html` | Support console |
 | `telegram/bot.js` | Telegram bot |
 | `tests/core.test.js` | Automated tests |
@@ -164,7 +164,7 @@ The full machine-readable spec is in `api/openapi.js`.
 
 ## Speech services: Addis AI
 
-Addis AI is an optional speech service, separate from the LLM and course retrieval. It does not answer questions or generate course facts. The browser records only after explicit user action, submits a short multipart recording to Savanna's backend, receives a transcription for review/editing, then uses the existing `/v1/chat` flow. Addis Voices 2 is called only after the learner presses the per-answer Listen button. No automatic recording or audio playback occurs.
+Addis AI is an optional speech service, separate from the LLM and course retrieval. It does not answer questions or generate course facts. The browser records only after explicit user action, submits a short multipart recording to the INCLUSIVE backend, receives a transcription for review/editing, then uses the existing `/v1/chat` flow. Addis Voices 2 is called only after the learner presses the per-answer Listen button. No automatic recording or audio playback occurs.
 
 ### Configuration and API routes
 
@@ -179,7 +179,7 @@ Audio is parsed in memory, not written to disk, and the transcription buffer is 
 
 ### Supported speech versus chat languages
 
-The official Addis docs list Scribe STT for English (`en`), Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`); non-Amharic Scribe languages use Turbo. Addis Voices 2 documents TTS for Amharic, Afaan Oromo, and Tigrinya. This does **not** make Savanna's course chat multilingual in all these languages. Current chat retrieval and response strings are English/Amharic only. For Oromo/Tigrinya transcripts, the widget displays the recognized text for review but asks the learner to translate/edit it to English or Amharic before chat submission. Arabic and Somali speech are not claimed as supported.
+The official Addis docs list Scribe STT for English (`en`), Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`); non-Amharic Scribe languages use Turbo. Addis Voices 2 documents TTS for Amharic, Afaan Oromo, and Tigrinya. This does **not** make INCLUSIVE course chat multilingual in all these languages. Current chat retrieval and response strings are English/Amharic only. For Oromo/Tigrinya transcripts, the widget displays the recognized text for review but asks the learner to translate/edit it to English or Amharic before chat submission. Arabic and Somali speech are not claimed as supported.
 
 ### Costs, security, and setup
 
@@ -192,11 +192,11 @@ Official references: [Speech-to-Text](https://docs.addisassistant.com/docs/capab
 ## 7. Embedding the widget
 
 ```html
-<script src="https://YOUR-SERVER/widget/savanna-assistant.v1.js" defer></script>
-<savanna-assistant lang="en"
+<script src="https://YOUR-SERVER/widget/inclusive-assistant.v1.js" defer></script>
+<inclusive-assistant lang="en"
   api-url="https://YOUR-SERVER"
   source-base="https://YOUR-SITE"
-  support-url="https://YOUR-SUPPORT-PAGE"></savanna-assistant>
+  support-url="https://YOUR-SUPPORT-PAGE"></inclusive-assistant>
 ```
 
 | Attribute | Meaning |
@@ -208,7 +208,7 @@ Official references: [Speech-to-Text](https://docs.addisassistant.com/docs/capab
 | `heading` | Custom title |
 | `theme` | `light` or `dark` (otherwise follows the device) |
 
-Events (prefix `savanna-assistant:`): `ready`, `answer`, `error`, `escalate` (cancelable), `handoff`, `accommodation`.
+Events (prefix `inclusive-assistant:`): `ready`, `answer`, `error`, `escalate` (cancelable), `handoff`, `accommodation`. The former `savanna-assistant` custom element, asset URL, and event prefix remain supported as backward-compatible aliases.
 
 ## 8. AI providers and grounded answers
 

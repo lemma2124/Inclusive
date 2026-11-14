@@ -1,8 +1,8 @@
-/*! savanna-assistant v1.3.0 | MIT | vanilla JS, no dependencies */
+/*! INCLUSIVE web assistant v1.3.0 | MIT | vanilla JS, no dependencies */
 (function () {
   'use strict';
   if (typeof window === 'undefined' || !window.customElements) { return; }
-  if (window.customElements.get('savanna-assistant')) { return; }
+  if (window.customElements.get('inclusive-assistant') && window.customElements.get('savanna-assistant')) { return; }
 
   var VERSION = '1.3.0';
 
@@ -18,8 +18,8 @@
 
   var STRINGS = {
     en: {
-      heading: 'Course assistant',
-      welcome: 'Hello! Ask me anything about your course. You can type in English or Amharic.',
+      heading: 'INCLUSIVE course assistant',
+      welcome: 'Welcome to INCLUSIVE! Ask me anything about your course. You can type in English or Amharic.',
       conversation: 'Conversation',
       langGroup: 'Language',
       label: 'Type your question',
@@ -93,8 +93,8 @@
       accommodationWaiting: 'Your request was sent to a person. They may message you here.'
     },
     am: {
-      heading: 'የኮርስ ረዳት',
-      welcome: 'ሰላም! ስለ ኮርሱ ማንኛውንም ጥያቄ ይጠይቁኝ። በአማርኛ ወይም በእንግሊዝኛ መጻፍ ይችላሉ።',
+      heading: 'INCLUSIVE የኮርስ ረዳት',
+      welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! ስለ ኮርሱ ማንኛውንም ጥያቄ ይጠይቁኝ። በአማርኛ ወይም በእንግሊዝኛ መጻፍ ይችላሉ።',
       conversation: 'ውይይት',
       langGroup: 'ቋንቋ',
       label: 'ጥያቄዎን ይጻፉ',
@@ -256,7 +256,7 @@
   function isHttp(u) { return /^https?:\/\//i.test(u || ''); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  class SavannaAssistant extends HTMLElement {
+  class InclusiveAssistant extends HTMLElement {
     static get observedAttributes() { return ['lang', 'heading']; }
 
     constructor() {
@@ -318,10 +318,15 @@
     _t(k) { return STRINGS[this._lang()][k]; }
 
     _emit(name, detail, cancelable) {
-      var ev = new CustomEvent('savanna-assistant:' + name, {
+      var ev = new CustomEvent('inclusive-assistant:' + name, {
         detail: detail, bubbles: true, composed: true, cancelable: !!cancelable
       });
       this.dispatchEvent(ev);
+      var legacyEvent = new CustomEvent('savanna-assistant:' + name, {
+        detail: detail, bubbles: true, composed: true, cancelable: !!cancelable
+      });
+      this.dispatchEvent(legacyEvent);
+      if (legacyEvent.defaultPrevented) { ev.preventDefault(); }
       return ev;
     }
 
@@ -1127,5 +1132,11 @@
     }
   }
 
-  window.customElements.define('savanna-assistant', SavannaAssistant);
+  if (!window.customElements.get('inclusive-assistant')) {
+    window.customElements.define('inclusive-assistant', InclusiveAssistant);
+  }
+  if (!window.customElements.get('savanna-assistant')) {
+    class LegacyInclusiveAssistant extends InclusiveAssistant {}
+    window.customElements.define('savanna-assistant', LegacyInclusiveAssistant);
+  }
 })();

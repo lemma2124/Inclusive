@@ -1,87 +1,202 @@
-# Savanna Assistant
+# INCLUSIVE
 
-## Accessible, multilingual learning and career support
+## Accessible, Multilingual Learning and Career Support
 
-Savanna Assistant is an accessible learning and career-support platform. The current working languages  It answers questions using a curated course knowledge base, provides citations, and can connect learners with a human support person when the content does not cover their question.
+**INCLUSIVE** is an accessibility-focused digital platform intended to make learning, information, and career support easier to access for learners and underserved communities.
 
-The project also provides job information, job-alert subscriptions, and interview-accommodation requests through a web widget, Telegram bot, and SMS integration. It is configured for a local Ollama model by default, with optional Gemini/Groq providers and a built-in no-model offline fallback. The current implementation uses Node.js and browser-native JavaScript and does not require a database or front-end framework.
+The current application combines a course-grounded assistant, English and Amharic chat, optional Addis AI speech services on the web, career-support workflows, and human assistance through a web interface, Telegram text bot, and SMS text route. It searches curated content before answering course questions and offers human support when its knowledge base cannot support a reliable answer.
 
-> **Guiding principle:** reliable course information first, AI assistance second, human support when needed.
+> **Our guiding principle: Reliable information first. AI assistance second. Human support whenever needed.**
 
-## The problem and our approach
+---
 
-Learners may have trouble finding accurate answers in course materials, accessing information in their preferred language, using interfaces that do not meet their accessibility needs, or reaching a person when automated help is insufficient. Job information and interview accommodations can also be difficult to access.
+## 1. The Problem and Our Approach
 
-Savanna Assistant addresses these needs by combining course-content retrieval and citations, English and Amharic support, accessible web interactions, human handoff, career information, and multiple communication channels. It aims to avoid presenting unsupported course answers as fact: questions with insufficient matching content are escalated rather than sent to an AI model for an ungrounded answer. Additional languages will be enabled only after language-specific content and review are available.
+Learners and people with disabilities can face barriers when accessing educational resources, digital services, employment information, and communication platforms. These barriers may include:
 
-## Features
+- Educational information that is difficult to understand or access.
+- Limited availability of information in local languages.
+- Websites and applications that are difficult to use with assistive technologies.
+- Difficulty communicating through text-only interfaces.
+- Limited access to career information and human assistance.
 
-- **Course-grounded answers:** searches the course content and includes citations for supported answers.
-- **English and Amharic:** detects language from a question; the web widget also offers language selection. Tigrinya, Afaan Oromo, Somali, and Arabic are planned, pending reviewed interface translations and course content.
-- **Pluggable AI providers:** local Ollama is the default choice; Gemini and Groq are opt-in. The built-in offline provider remains the final no-model fallback.
-- **Human handoff:** learners can request support and share relevant conversation context after consent.
-- **Career support:** job information, job-alert subscriptions, and interview-accommodation requests.
-- **Multiple channels:** embeddable web component, Telegram bot, and SMS route with a console simulator or configurable webhook adapter.
-- **Accessibility features:** semantic controls, keyboard-oriented interactions, responsive layout, dark mode, and browser speech features where supported.
+INCLUSIVE brings together curated educational content, accessible web interactions, speech features, career-support workflows, multiple communication channels, and human handoff. The assistant checks course materials before using an AI answer provider. If relevant material is not found, it does not ask a model to invent an answer; it explains the limitation and offers human support.
 
-Features vary by channel and device. See [docs/readme.md](docs/readme.md) for channel commands, widget embedding, API details, and limitations.
+---
 
-## Intended users
+## 2. Main Features
 
-- **Learners:** ask course questions, view citations, use available speech features, and request human assistance.
-- **Job seekers:** explore job information, subscribe to alerts, and submit interview-accommodation requests.
-- **Support agents:** use the protected console to review and respond to learner requests.
-- **Maintainers:** configure integrations, update course and job content, and run tests.
+### 2.1 Course-Grounded Learning Assistant
 
-## How it works
+- Searches the curated course knowledge base before generating an answer.
+- Returns source citations for answers grounded in retrieved course material.
+- Supports English and Amharic course chat.
+- Offers a human-support option when relevant supporting content is unavailable.
+- Uses a built-in offline provider as a no-network fallback when matching content exists.
+
+### 2.2 Language Support
+
+Course-chat and speech-service languages are different capabilities:
+
+- **Current course chat and reviewed content:** English and Amharic.
+- **Addis Scribe speech-to-text:** English (`en`), Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`).
+- **Addis Voices text-to-speech:** Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`), subject to available voices and service configuration.
+- **Future course/interface languages:** Afaan Oromo, Tigrinya, Somali, and Arabic require translated interface text, reviewed course content, and quality checks before being described as supported chat languages.
+
+Speech recognition in a language does not mean the course assistant can answer in that language. Afaan Oromo and Tigrinya transcripts can be reviewed, but course chat currently supports English and Amharic.
+
+### 2.3 AI Answer Providers
+
+Answer providers are configurable through `AI_PROVIDERS`; they are not tied to Addis AI speech:
+
+- **Ollama:** first provider in the example `.env.example` configuration (`ollama,offline`).
+- **Gemini and Groq:** optional cloud providers, enabled by adding them to `AI_PROVIDERS` and configuring their keys.
+- **Offline:** always included as a final passage-based fallback.
+
+For example, `AI_PROVIDERS=groq,offline` makes Groq the first configured answer provider. Provider choice does not bypass course retrieval or make unsupported course answers reliable.
+
+### 2.4 Addis AI Speech-to-Text and Text-to-Speech
+
+Addis AI provides optional speech capabilities for the web widget:
+
+- Learners can start and cancel a short recording after granting microphone permission.
+- Addis Scribe converts the recording into text; learners can review and edit the transcript before submitting it as a chat question.
+- Learners can request Addis Voices audio for eligible answers.
+- Generated audio has user-operated playback controls, and the answer remains available as text.
+- The API key remains in the backend environment and is not sent to the browser.
+- Speech is optional and user-initiated. It may incur usage charges.
+
+### 2.5 Career Gateway
+
+The current application includes job information in local content, job-alert subscriptions, job-alert broadcast routes, and interview-accommodation requests. Availability differs by channel. The following are **not claims of current functionality** and remain potential future work unless separately implemented: verified live vacancies, scholarships, CV or cover-letter generation, and comprehensive job-search or interview coaching.
+
+Job content should be reviewed and updated by maintainers. Do not treat sample/local listings as live vacancies or assume that deadlines or eligibility information are current without verification.
+
+### 2.6 Human Support
+
+- Learners can request human assistance when the assistant cannot answer reliably.
+- The web flow asks for consent before sharing conversation context.
+- Authorized support agents can review and respond to open requests through the protected console.
+- Interview-accommodation requests can be routed to the support queue without requiring a diagnosis.
+- Support access is protected by the server-side `AGENT_KEY`.
+
+### 2.7 Communication Channels
+
+- **Web application and embeddable widget:** primary learner interface, course chat, accommodations, and web speech controls.
+- **Telegram bot:** text-based course help, human-support flow, job-alert commands, and accommodation requests. Telegram voice-message processing is not implemented.
+- **SMS:** text-only route with a console simulator for local testing or a configurable outbound webhook adapter. SMS does not generate audio.
+- **Support console:** protected staff interface for handoffs and job-alert broadcasts.
+
+Channel capabilities differ, and real Telegram or SMS delivery requires the relevant credentials and provider setup.
+
+### 2.8 Accessibility and Inclusive Design
+
+Accessibility is a core design goal. The web UI includes semantic controls, labels, keyboard-visible focus, responsive layouts, status announcements, editable speech transcripts, text alternatives, and user-controlled audio playback. The project targets WCAG 2.2 Level AA, but this target is not a claim of full conformance. Manual testing with assistive technologies and users with different access needs remains important.
+
+---
+
+## 3. Intended Users
+
+| User group | How INCLUSIVE helps |
+| --- | --- |
+| Learners and students | Ask course questions, view citations, use available speech features, and request human support. |
+| People with disabilities | Use accessible web controls, text alternatives, and available speech features. |
+| Job seekers | Explore local job information, subscribe to alerts on supported channels, and request interview accommodations. |
+| Support agents | Review and respond to learner requests through a protected console. |
+| Schools and organizations | Embed the web component and provide access to curated learning support. |
+| Maintainers | Manage content, configure integrations, and run tests. |
+
+---
+
+## 4. How the Platform Works
 
 ```mermaid
 flowchart TD
-  Learner --> Channel[Web, Telegram, or SMS]
-  Channel --> API[Node.js API]
-  API --> Detect[Language detection]
-  Detect --> Search[Search curated course content]
-  Search --> Match{Relevant content found?}
-  Match -->|Yes| Provider[Configured AI provider or offline fallback]
-  Provider --> Answer[Answer with citations]
-  Match -->|No| Handoff[Offer human support]
-  Handoff --> Agent[Protected support console]
-  API --> Career[Job alerts and accommodation requests]
+    User[User or learner] --> Channel[Web, Telegram, or SMS]
+    Channel --> Backend[Node.js API]
+    Backend --> Lang[Language detection]
+    Lang --> Retrieval[Search curated course content]
+    Retrieval --> Match{Relevant content found?}
+    Match -->|Yes| Provider[Configured AI provider or offline fallback]
+    Provider --> Answer[Grounded answer with citations]
+    Answer --> User
+    Match -->|No| Handoff[Offer human support]
+    Handoff --> Agent[Protected support console]
+    Agent --> User
+    User --> Career[Career support routes and local content]
+    WebMic[User-started web recording] --> SpeechAPI[Speech routes on backend]
+    SpeechAPI --> Scribe[Addis Scribe]
+    Scribe --> Transcript[Transcript for learner review]
+    Transcript --> User
+    Answer -->|Optional, user requested| Voices[Addis Voices]
+    Voices --> Audio[Audio controls with text still available]
 ```
 
-The retrieval and chat logic is in [api/retrieval/](api/retrieval/) and [api/chat.js](api/chat.js). Provider implementations and fallback routing are in [api/ai/](api/ai/). Human conversations and job subscriptions currently use in-memory stores.
+### Core workflow
 
-## Technology and project layout
+1. A learner sends a question through a supported channel.
+2. The application detects or uses the selected English/Amharic chat language.
+3. For course questions, retrieval searches the curated knowledge base.
+4. If relevant passages are found, the configured answer provider generates a grounded response; citations point to the supporting content.
+5. If relevant content is not found, the assistant offers human support instead of asking the model for an unsupported answer.
+6. Speech input and output are optional web flows handled by the backend and Addis AI.
+7. Career routes handle supported local job-alert and accommodation workflows.
 
-- **Runtime and API:** Node.js 20.12 or newer, using the native HTTP server.
-- **Web interface:** browser-native JavaScript, HTML, and CSS; no front-end framework.
-- **AI:** local Ollama by default, optional Gemini and Groq providers, plus a built-in offline fallback.
-- **Testing:** Node.js test runner, Playwright, axe-core, and Microsoft Edge for the accessibility scan.
+---
+
+## 5. Technology Stack
+
+### Current implementation
+
+| Area | Technology |
+| --- | --- |
+| Frontend | HTML, CSS, browser-native JavaScript and a custom web component |
+| Backend | Node.js 20.12+ native HTTP server and JSON REST API |
+| Answer providers | Ollama by default in the sample configuration; optional Gemini and Groq; built-in offline fallback |
+| Speech services | Addis AI Scribe (STT) and Addis Voices (TTS), called through backend routes |
+| Messaging | Telegram Bot API and configurable SMS webhook/console simulator |
+| Knowledge base | Local JSON course and job content |
+| Runtime data | In-memory handoffs, SMS sessions, and job subscriptions; no database |
+| Tests | Node.js test runner, Playwright, and axe-core |
+| Accessibility target | WCAG 2.2 Level AA; manual verification is ongoing |
+
+### Future architecture direction
+
+A serverless architecture using Supabase Edge Functions (Deno), Supabase PostgreSQL, optional Supabase Auth, and static hosting is one possible future direction. **This is a proposal only.** The current application is a Node.js server; no Supabase migration has been performed. Existing routes, integrations, authorization, and storage must be migrated and tested before replacing the current backend.
+
+---
+
+## 6. Current Project Structure
 
 | Path | Purpose |
 | --- | --- |
 | [api/server.js](api/server.js) | HTTP server, routes, static pages, rate limits, and application wiring. |
 | [api/chat.js](api/chat.js) | Grounded chat behavior and citations. |
-| [api/ai/](api/ai/) | Provider implementations and fallback router. |
-| [api/retrieval/](api/retrieval/) | Content loading, tokenization, and search. |
+| [api/ai/](api/ai/) | Answer-provider adapters, Addis speech provider, and fallback routing. |
+| [api/retrieval/](api/retrieval/) | Course-content loading, tokenization, and search. |
 | [api/handoff/](api/handoff/) | In-memory learner/support conversations. |
 | [api/sms/](api/sms/) | SMS conversation handling and console/webhook adapters. |
 | [api/jobs/](api/jobs/) | Job subscriptions and alert delivery. |
-| [content/](content/) | English and Amharic course and job content. |
+| [api/speech/](api/speech/) | Audio-upload parsing and validation. |
+| [content/](content/) | English and Amharic course and local job content. |
 | [widget/](widget/) | Web component, demo, support console, and SMS simulator. |
-| [telegram/bot.js](telegram/bot.js) | Optional Telegram bot process. |
+| [telegram/bot.js](telegram/bot.js) | Optional Telegram text bot. |
 | [tests/](tests/) | Core tests and automated accessibility checks. |
-| [docs/](docs/) | Detailed project guide and accessibility report. |
+| [docs/](docs/) | Detailed guide and accessibility report. |
 
-## Requirements
+---
+
+## 7. Requirements and Local Setup
+
+### Requirements
 
 - Node.js **20.12 or newer** and npm.
 - Microsoft Edge to run the optional Playwright accessibility scan.
-- Credentials only for external integrations you choose to enable.
+- Credentials only for the external integrations you choose to enable.
 
-## Installation and local setup
+### Install dependencies
 
-Run these commands from the `savanna-assistant` project directory:
+Run from the `savanna-assistant` project directory:
 
 ```sh
 npm install
@@ -99,25 +214,27 @@ On macOS or Linux:
 cp .env.example .env
 ```
 
-Set a strong random `AGENT_KEY` to enable the support console. Set `SMS_INBOUND_KEY` to enable the SMS route. Both features remain disabled when their keys are empty. For the default local AI provider, install Ollama and pull the model configured in `OLLAMA_MODEL` (the example uses `aya-expanse:8b`). Configure cloud provider keys and Telegram credentials only if you need those integrations. **Keep `.env` private; never commit real API keys, bot tokens, or other secrets.**
+Keep `.env` private. Never commit API keys, Telegram tokens, or other credentials to GitHub. Set a strong `AGENT_KEY` to enable the support console. Set `SMS_INBOUND_KEY` to enable the SMS simulator and inbound route. Configure only the external providers you intend to use.
 
-After installing Ollama, download the example model:
+### Optional local Ollama setup
+
+The sample `.env.example` uses Ollama first. Install Ollama and pull its configured example model if using that provider:
 
 ```sh
 ollama pull aya-expanse:8b
 ```
 
-If your existing `.env` still has an older `AI_PROVIDERS` value, set it to `ollama,offline` to use the local model first. The server falls back to the built-in offline provider if Ollama is unavailable.
+To use Groq first instead, set `AI_PROVIDERS=groq,offline` and configure `GROQ_API_KEY`. The offline provider is always appended as the final fallback.
 
-Start the application:
+### Start the server
 
 ```sh
 npm start
 ```
 
-Open these local pages:
+The server uses port `8787` by default.
 
-| Service | URL | Notes |
+| Service | Local URL | Notes |
 | --- | --- | --- |
 | Assistant demo | <http://localhost:8787/demo> | Web widget and course chat. |
 | Support console | <http://localhost:8787/agent> | Requires `AGENT_KEY`. |
@@ -125,132 +242,220 @@ Open these local pages:
 | Health check | <http://localhost:8787/health> | Reports loaded content and service status. |
 | OpenAPI definition | <http://localhost:8787/v1/openapi.json> | Machine-readable API description. |
 
-### Run the Telegram bot
+### Optional Telegram bot
 
-The bot runs separately from the API server. Configure `TELEGRAM_BOT_TOKEN` and `API_URL` in `.env`, leave the server running, then open another terminal in the project directory and run:
+The bot runs separately from the API server. Configure `TELEGRAM_BOT_TOKEN` and `API_URL` in `.env`, leave the server running, then start the bot in another terminal:
 
 ```sh
 npm run bot
 ```
 
-For deployment, use an HTTPS API endpoint and store credentials in the hosting platform's secret manager. Telegram users must start a conversation with the bot before it can message them.
+Telegram users must start a conversation with the bot before it can message them. Use HTTPS for deployed services and keep credentials in a secret manager.
 
-## Configuration
+---
 
-See [.env.example](.env.example) for settings and default values. Important variables include:
+## 8. Configuration and Environment Variables
+
+See [.env.example](.env.example) for the full list and defaults.
 
 | Variable | Purpose |
 | --- | --- |
 | `PORT` | API port; defaults to `8787`. |
-| `AI_PROVIDERS` | Provider priority; defaults to `ollama,offline`. Offline is always added as a fallback. |
-| `OLLAMA_BASE_URL` | Local Ollama OpenAI-compatible API URL; defaults to `http://127.0.0.1:11434/v1`. |
-| `OLLAMA_MODEL` | Ollama model name; defaults to `aya-expanse:8b`. Pull the model locally before use. |
+| `AI_PROVIDERS` | Answer-provider order; sample default is `ollama,offline`. Offline is always added as fallback. |
+| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Local Ollama endpoint and model. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Optional Gemini credentials and model. |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Optional Groq credentials and model. |
-| `ADDIS_API_KEY` | Optional server-only key for Addis AI STT and TTS. Speech calls may incur pay-as-you-go charges. |
-| `AI_TIMEOUT_MS` | Provider request timeout in milliseconds; defaults to `8000`. |
-| `MIN_COVERAGE` | Minimum course-content match threshold; defaults to `0.3`. |
-| `AGENT_KEY` | Enables and protects support-agent routes. Use a long random value. |
-| `INTERNAL_KEY` | Optional shared secret for trusted internal clients such as the Telegram bot. |
+| `ADDIS_API_KEY` | Server-only Addis AI credential for speech routes. Speech calls may incur charges. |
+| `AI_TIMEOUT_MS` | Answer-provider timeout in milliseconds. |
+| `MIN_COVERAGE` | Minimum course-content match threshold. |
+| `AGENT_KEY` | Enables and protects support-agent routes and console. |
+| `INTERNAL_KEY` | Optional shared secret for trusted internal clients such as Telegram. |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot credential; also used for Telegram job-alert delivery. |
-| `API_URL` | API base URL used by the Telegram bot; defaults to `http://localhost:8787`. |
-| `SMS_INBOUND_KEY` | Enables and protects inbound SMS and the SMS simulator. Empty disables SMS. |
-| `SMS_PROVIDER` | `console` for local simulation or `webhook` for an external SMS gateway. |
+| `API_URL` | Backend base URL used by the Telegram bot. |
+| `SMS_INBOUND_KEY` | Enables and protects inbound SMS and the SMS simulator; empty disables them. |
+| `SMS_PROVIDER` | `console` simulator or `webhook` outbound adapter. |
 | `SMS_WEBHOOK_URL`, `SMS_WEBHOOK_KEY` | Destination and optional authentication for webhook SMS delivery. |
 | `CORS_ORIGIN` | `*` or a comma-separated origin allowlist. |
-| `RATE_LIMIT_PER_MIN` | Chat requests per IP per minute; defaults to `30`. |
-| `HANDOFF_RATE_LIMIT_PER_MIN` | Handoff requests per IP per minute; defaults to `5`. |
+| `RATE_LIMIT_PER_MIN` | Chat requests per IP per minute. |
+| `HANDOFF_RATE_LIMIT_PER_MIN` | Handoff requests per IP per minute. |
 
-Ollama requests use the configured endpoint. Loopback endpoints are treated as local; non-loopback endpoints are treated as external and receive cloud-style message redaction. Use a trusted local endpoint. Gemini and Groq are optional cloud providers; to disable them, set `AI_PROVIDERS=ollama,offline`. The offline provider is a basic passage-based fallback, not an equivalent replacement for an LLM.
+Speech endpoints allow up to five requests per IP per minute in the current server. This in-memory rate limit is not Addis usage accounting, a spending limit, or a cost alert. Loopback Ollama requests are treated as local; non-loopback endpoints are treated as external for message redaction. Use only a trusted Ollama endpoint.
 
-## API overview
+---
 
-The full route definitions and schemas are available at `/v1/openapi.json` while the server is running. Key routes include:
+## 9. API Overview
+
+The complete route definitions and schemas are available at `/v1/openapi.json` while the server is running.
 
 | Method and route | Purpose | Access |
 | --- | --- | --- |
-| `GET /health` | Health and loaded-content status. | Public |
-| `POST /v1/chat` | Ask a course question; returns answer and citations when grounded. | Public, rate-limited |
-| `POST /v1/handoff` | Create a learner support request. | Public, rate-limited |
-| `/v1/handoff/:id` | Learner reads, messages, signals, or closes a handoff. | Learner bearer token |
+| `GET /health` | Liveness and loaded-content status. | Public |
+| `POST /v1/chat` | Ask a course question and receive an answer/citations or human-help suggestion. | Public, rate-limited |
+| `POST /v1/handoff` | Create a learner support request after consent. | Public, rate-limited |
+| `/v1/handoff/:id` | Read, message, signal, or close a learner conversation. | Learner bearer token |
 | `POST /v1/accommodations` | Submit an interview-accommodation request. | Public, rate-limited |
 | `POST /v1/jobs/subscribe` | Subscribe to job alerts by Telegram or SMS. | Public, rate-limited |
 | `POST /v1/jobs/unsubscribe` | Unsubscribe from job alerts. | Public, rate-limited |
-| `/v1/agent/handoffs` | List and manage learner handoffs. | `AGENT_KEY` bearer token |
+| `POST /v1/speech/transcribe` | Validate and transcribe a short uploaded recording through Addis Scribe. | `ADDIS_API_KEY`, rate-limited |
+| `POST /v1/speech/synthesize` | Request an Addis Voices clip. | `ADDIS_API_KEY`, rate-limited |
+| `/v1/agent/handoffs` | List and manage learner support requests. | `AGENT_KEY` bearer token |
 | `POST /v1/agent/jobs/broadcast` | Broadcast a job alert. | `AGENT_KEY` bearer token |
 | `/v1/sms/inbound` | Receive an inbound SMS webhook request. | `SMS_INBOUND_KEY` bearer token |
 
-## SMS integration
+---
 
-The default console adapter is for local simulation and development. To use a real gateway, configure `SMS_PROVIDER=webhook`, set `SMS_WEBHOOK_URL` and `SMS_WEBHOOK_KEY`, and verify that the gateway's request/response format matches [api/sms/webhook-adapter.js](api/sms/webhook-adapter.js). Provider-specific adjustments may be needed. Real SMS service requires an external gateway and its own credentials.
+## 10. SMS Integration
 
-## Accessibility
+The SMS route supports plain-text interaction. Its console adapter enables local simulation without a real SMS provider. A webhook adapter can be configured for an external gateway, but gateway request formats vary and may need provider-specific changes.
 
-Accessibility is a design goal, with **WCAG 2.2 Level AA** as the target—not a claim of full conformance. The web interface includes semantic controls, visible focus styles, responsive layouts, and browser-dependent voice features. Automated checks cannot replace manual testing with keyboard-only navigation, screen readers, zoom, high-contrast settings, and people with varied access needs.
+A typical integration flow is:
 
-The current scope and outstanding manual checks are documented in [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
+1. A learner sends a text message to the SMS provider.
+2. The provider forwards the inbound message to the configured endpoint.
+3. The application validates the shared inbound key and processes the message.
+4. The response is sent through the configured adapter.
 
-## Addis AI speech (optional)
+Configure `SMS_INBOUND_KEY` to enable the route. For real delivery, configure `SMS_PROVIDER=webhook`, `SMS_WEBHOOK_URL`, and any required `SMS_WEBHOOK_KEY`. The local simulator does not send real SMS messages. SMS does not use Addis TTS and remains text-only. Check provider support for inbound webhooks, local-language encoding, opt-out requirements, and message costs before production use.
 
-When `ADDIS_API_KEY` is configured, the widget can record a short utterance for transcription and can request user-initiated generated speech for supported answers. The key stays in the server `.env`; it is never sent to the browser. Addis handles speech only: existing retrieval, Groq/other LLM providers, citations, and human handoff remain responsible for their current jobs.
+---
 
-**Speech languages documented by Addis Scribe:** English (`en`), Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`). Speech is not the same as full language support: the current course chat/retrieval content still supports English and Amharic only. Arabic and Somali are not listed as supported Scribe or Addis Voices languages in the documentation used for this integration.
+## 11. Addis AI Speech Integration
 
-- Start speech input by choosing a speech language and pressing the microphone button. The browser asks for microphone permission only then. Stop to transcribe; cancel discards the recording. Review or edit the resulting text before submitting.
-- Recordings are limited locally to **30 seconds** and **8 MB**, validated for audio format/duration on the server, sent in memory to Addis, then discarded. Browser microphone APIs generally require HTTPS in deployment (localhost is allowed for development).
-- Each answer has the existing browser read-aloud option. For Amharic, Afaan Oromo, and Tigrinya, **Listen (Addis voice)** can generate an MP3; native audio controls provide playback, pause/resume, seeking, and replay. No audio plays until the learner activates a control.
-- STT/TTS are pay-as-you-go, not guaranteed free-tier services. Addis documentation currently lists STT at **3.5 ETB per 1,000 transcript characters** and Voices 2 at **5 ETB per generated minute**. Check the [official pricing](https://docs.addisassistant.com/docs/platform/pricing) and wallet before using; pricing may change. The app applies per-IP rate limits, but those are not a spending cap.
-- TTS obtains a currently available voice ID from the Addis voice catalog instead of hard-coding one. Generated audio uses a signed URL and is not retained by Savanna.
+Addis AI provides optional speech processing, separate from course retrieval and answer generation. `ADDIS_API_KEY` is used only by the backend. Leave it empty to disable Addis speech without disabling typed chat.
 
-See [docs/readme.md](docs/readme.md#speech-services-addis-ai) for endpoints, provider behavior, and troubleshooting.
+| Capability | Languages | Function |
+| --- | --- | --- |
+| Addis Scribe (STT) | English, Amharic, Afaan Oromo, Tigrinya | Converts a user-started recording into text for review. |
+| Addis Voices (TTS) | Amharic, Afaan Oromo, Tigrinya | Generates audio after a user requests an eligible answer to be read aloud. |
+| Browser read-aloud | Depends on browser and device | Uses browser voices; separate from Addis services. |
 
-## Tests
+### Speech-to-text flow
 
-Run the automated core suite:
+1. Select the speech language in the web widget.
+2. Activate the microphone and grant browser permission.
+3. Stop to submit the recording for transcription, or cancel to discard it.
+4. Review or edit the resulting transcript before sending it as a chat question.
+
+### Text-to-speech flow
+
+1. Ask a course question and receive an answer.
+2. Activate **Listen (Addis voice)** when the answer language has an available Addis voice.
+3. Use the accessible audio controls to play, pause/resume, seek, or replay. The answer remains available as text.
+
+The current widget limits recordings to **30 seconds** and **8 MB**. The server validates media type and duration, processes audio in memory, and clears the uploaded buffer after transcription. No recording is intentionally written to disk. Browser microphone access generally requires HTTPS outside localhost. Addis Voices chooses a currently available voice from the service catalog rather than relying on a fixed voice ID.
+
+Speech calls may incur pay-as-you-go charges. Review [Addis AI pricing](https://docs.addisassistant.com/docs/platform/pricing) and the account balance before testing. The app has a per-IP request limit, but does not yet query Addis usage/estimate endpoints or enforce a spending budget. Accepted transcription may continue and be billed if the client disconnects. Test STT and TTS separately using short, non-sensitive samples before running a full demo. Mocked tests do not validate live credentials or account balance.
+
+The web widget is the only channel with Addis speech integration currently. Telegram is text-only; SMS is text-only and does not generate audio.
+
+---
+
+## 12. Accessibility and Quality Assurance
+
+The project targets WCAG 2.2 Level AA. Accessibility work includes semantic controls, visible keyboard focus, responsive layout, conversation/status announcements, transcript review, and text alternatives to audio. The target does not certify full conformance.
+
+Automated accessibility checks use Playwright and axe-core against `/demo`, `/agent`, and `/sms-demo` in light/dark color schemes and at a narrow viewport. Manual checks—such as keyboard-only operation, screen-reader use, browser zoom, text spacing, and high-contrast settings—are also necessary. Current scope and known gaps are recorded in [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md).
+
+---
+
+## 13. Testing
+
+Run the core automated suite:
 
 ```sh
 npm test
 ```
 
-To run the accessibility checks, start the server with `npm start` in one terminal, then run in a second terminal:
+To run the accessibility scan, start the application with `npm start` in one terminal, then run in another terminal:
 
 ```sh
 npm run a11y
 ```
 
-The scan uses Playwright and Microsoft Edge to check `/demo`, `/agent`, and `/sms-demo` in light/dark color schemes and at a narrow viewport. It also checks some widget states. Test output reports the current results.
+The core suite covers retrieval, chat grounding, provider fallback, HTTP routes, handoff, SMS, job alerts, accommodations, speech-provider behavior using mocked responses, and audio-upload validation. Mocked tests do not make Addis requests or incur speech charges. They do not prove that live API credentials, Addis account balance, real SMS/Telegram delivery, or microphone permissions work. Verify external integrations separately and check pricing first.
 
-## Privacy, security, and limitations
+---
 
-- Human handoff is intended to share conversation context only after learner consent. Support routes require `AGENT_KEY`.
-- Accommodation requests should not require a diagnosis; avoid entering unnecessary sensitive information.
-- Handoff conversations and job subscriptions are stored in memory. They are lost when the server restarts and are not shared across multiple server instances.
-- Configure production secrets through a secret manager, restrict CORS to trusted origins, and use HTTPS for public deployments.
-- Real Telegram and SMS delivery require valid credentials and external service configuration.
-- Browser voice support varies by browser, operating system, and installed speech voices; Amharic voice support may not be available.
-- Screen sharing uses WebRTC with STUN only. Some networks may require TURN for reliable connections.
-- Amharic course and job text should be reviewed by fluent speakers before production use. Additional languages are planned, not currently supported.
-- Telegram alerts can only reach users who have initiated a conversation with the bot.
+## 14. Privacy, Security, and Limitations
 
-## Demonstration walkthrough
+- Ask for consent before sharing learner conversation context with a support agent.
+- Accommodation requests should describe the requested support and do not require a diagnosis.
+- Keep Addis, AI-provider, Telegram, and SMS secrets on the server; never commit `.env`.
+- Use HTTPS for public deployments and restrict CORS to trusted origins.
+- Validate webhook requests and protect support and inbound SMS endpoints with their configured keys.
+- Handoff conversations, SMS sessions, and job subscriptions use in-memory storage and are lost when the server restarts.
+- Telegram voice-message processing is not implemented; Telegram is text-based.
+- SMS is text-only and does not use Addis TTS.
+- Addis key presence does not confirm validity or available balance. Speech calls may incur costs; app rate limits are not a budget cap.
+- Speech input supports more languages than course chat; course-grounded chat currently supports English and Amharic only.
+- Screen sharing uses WebRTC with STUN only and may fail on some networks.
+- Automated accessibility scans do not replace manual testing with assistive technologies and people with varied access needs.
+- Job content is local content; verify that listings and deadlines are current before presenting them as active opportunities.
 
-1. Open `/demo`, choose a language, and ask a question covered by the course content. Show the cited source.
+---
+
+## 15. Demonstration Walkthrough
+
+1. Open `/demo` and ask a question covered by the course content; show the citation.
 2. Ask an unsupported question and demonstrate the human-support option.
 3. If `AGENT_KEY` is configured, open `/agent` and respond to a consented handoff.
-4. Demonstrate the accommodation form or SMS simulator if its key is configured.
-5. Demonstrate Telegram or real SMS only when the corresponding integration has been configured and tested.
+4. Submit an interview-accommodation request without providing a diagnosis.
+5. To demonstrate speech, check Addis pricing/balance and test STT and TTS separately with short, non-sensitive samples before the full web flow.
+6. Demonstrate the SMS simulator or configured Telegram text bot, clearly distinguishing simulation from real delivery.
 
-Clearly distinguish working integrations from simulator, prototype, or planned behavior during a presentation.
+Do not present Telegram voice support, live vacancies, or other planned work as currently implemented.
 
-## Future development
+---
 
-Potential next steps include persistent storage with appropriate consent and retention policies, manual accessibility testing with NVDA and other assistive technologies, fluent-speaker review and expansion to Tigrinya, Afaan Oromo, Somali, and Arabic, job-alert preferences, production monitoring, and load testing. These are future improvements, not claims about the current implementation.
+## 16. Future Development Roadmap
 
-## Documentation and license
+These items are proposals, not claims about the current implementation:
 
-- Detailed feature guide, channel commands, and widget embedding: [docs/readme.md](docs/readme.md)
+### Phase 1 — Core platform
+
+- Improve course retrieval, citations, and content review.
+- Configure answer-provider priorities for deployment needs.
+- Add usage visibility and cost controls for paid AI and speech providers.
+
+### Phase 2 — Multilingual inclusion
+
+- Review and improve Amharic course content with fluent speakers.
+- Prepare reviewed Afaan Oromo and Tigrinya interface/course content.
+- Evaluate Somali and Arabic interface/content support.
+
+### Phase 3 — Career gateway
+
+- Expand verified job, internship, training, and scholarship information.
+- Add job-search, CV, cover-letter, and interview-preparation guidance.
+- Improve accessible alert preferences and accommodation workflows.
+
+### Phase 4 — Communication channels
+
+- Evaluate Telegram voice-message transcription and response behavior.
+- Verify and improve the two-way SMS integration with a selected provider.
+- Continue improving embeddable widget behavior and accessibility.
+
+### Phase 5 — Architecture and reliability
+
+- Evaluate a possible migration to Supabase Edge Functions, PostgreSQL, and static hosting. The existing app remains Node.js until a migration is implemented and tested.
+- Add persistent storage with appropriate consent, retention, and access controls.
+- Improve deployment, monitoring, rate limits, and load testing.
+- Complete manual accessibility testing with assistive technologies and users.
+
+---
+
+## 17. Documentation and License
+
+- Detailed feature guide: [docs/readme.md](docs/readme.md)
 - Accessibility scope and manual test status: [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md)
-- API reference: `/v1/openapi.json` while the server is running
-- License: MIT is declared in [package.json](package.json)
+- Environment configuration: [.env.example](.env.example)
+- API reference: `/v1/openapi.json` while the server is running.
+- License: MIT, as declared in [package.json](package.json).
 
-**Savanna Assistant — accessible learning, reliable answers, human support, and opportunity.**
+---
+
+## Our Vision
+
+INCLUSIVE aims to make digital learning, information, communication, and employment opportunities more accessible. Technology should help people learn independently, communicate confidently, discover opportunities, and reach human support when they need it.
+
+**INCLUSIVE — Accessible learning. Inclusive communication. Equal opportunity.**

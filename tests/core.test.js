@@ -357,10 +357,13 @@ test('widget parses, stays small, and is served safely', async () => {
   assert.match(src, /\/v1\/speech\/synthesize/);
   assert.match(src, /speechChatUnsupported/);
   await withServer(baseCfg, async (base) => {
-    const js = await fetch(`${base}/widget/savanna-assistant.v1.js`);
+    const js = await fetch(`${base}/widget/inclusive-assistant.v1.js`);
     assert.equal(js.status, 200);
     assert.match(js.headers.get('content-type'), /javascript/);
-    assert.match(await js.text(), /customElements\.define\('savanna-assistant'/);
+    const widget = await js.text();
+    assert.match(widget, /customElements\.define\('inclusive-assistant'/);
+    assert.match(widget, /customElements\.define\('savanna-assistant', LegacyInclusiveAssistant\)/);
+    assert.equal((await fetch(`${base}/widget/savanna-assistant.v1.js`)).status, 200, 'legacy asset URL remains compatible');
     assert.equal((await fetch(`${base}/demo`)).status, 200);
     assert.equal((await fetch(`${base}/widget/..%2Fapi%2Fserver.js`)).status, 404);
     assert.equal((await fetch(`${base}/widget/missing.js`)).status, 404);

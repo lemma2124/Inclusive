@@ -1,4 +1,4 @@
-/*! Savanna Telegram bot — zero dependencies, long polling.
+/*! INCLUSIVE Telegram bot — zero dependencies, long polling.
     Reuses the same /v1/chat and /v1/handoff endpoints as the web widget,
     so grounding, citations, and human handoff behave identically here. */
 
@@ -18,7 +18,7 @@ if (!TOKEN) {
 
 const STRINGS = {
     en: {
-        welcome: 'Hello! Ask me anything about your course, in English or Amharic. Send /am for Amharic, /en for English, /human to ask for a person, /jobs for job alerts, /accommodation for interview accommodations.',
+        welcome: 'Welcome to INCLUSIVE! Ask me anything about your course, in English or Amharic. Send /am for Amharic, /en for English, /human to ask for a person, /jobs for job alerts, /accommodation for interview accommodations.',
         consent: 'A person can help you. If you continue, they will see your questions and answers from this chat. Please do not share passwords or ID numbers.',
         yes: 'Yes, connect me', no: 'No, thanks',
         cancelled: 'OK. You can keep asking me questions.',
@@ -45,7 +45,7 @@ const STRINGS = {
         accommodationWaiting: 'Your request was sent to a person. They may reply here. Send /end to stop.'
     },
     am: {
-        welcome: 'ሰላም! ስለ ኮርስዎ በአማርኛ ወይም በእንግሊዝኛ ይጠይቁኝ። ለአማርኛ /am፣ ለእንግሊዝኛ /en፣ ሰው ለማግኘት /human፣ ለስራ ማስታወቂያ /jobs፣ ለቃለ መጠይቅ ድጋፍ /accommodation ይላኩ።',
+        welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! ስለ ኮርስዎ በአማርኛ ወይም በእንግሊዝኛ ይጠይቁኝ። ለአማርኛ /am፣ ለእንግሊዝኛ /en፣ ሰው ለማግኘት /human፣ ለስራ ማስታወቂያ /jobs፣ ለቃለ መጠይቅ ድጋፍ /accommodation ይላኩ።',
         consent: 'አንድ ሰው ሊረዳዎት ይችላል። ከቀጠሉ፣ በዚህ ውይይት ውስጥ ያሉትን ጥያቄዎችዎን እና መልሶቹን ያያሉ። እባክዎ የይለፍ ቃል ወይም የመታወቂያ ቁጥር አያጋሩ።',
         yes: 'አዎ፣ አገናኙኝ', no: 'አይ፣ አመሰግናለሁ',
         cancelled: 'እሺ። መጠየቅ መቀጠል ይችላሉ።',
@@ -275,7 +275,7 @@ async function handleUpdate(u) {
 }
 
 async function main() {
-    console.log(`Savanna Telegram bot running, talking to ${API_URL}${INTERNAL_KEY ? ' (trusted)' : ' (no INTERNAL_KEY set — subject to normal rate limits)'}`);
+    console.log(`INCLUSIVE Telegram bot running, talking to ${API_URL}${INTERNAL_KEY ? ' (trusted)' : ' (no INTERNAL_KEY set — subject to normal rate limits)'}`);
     let offset = 0;
     for (;;) {
         const updates = await tg('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'callback_query'] });

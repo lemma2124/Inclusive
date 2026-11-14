@@ -1,10 +1,10 @@
-# Accessibility conformance report: Savanna Assistant
+# Accessibility conformance report: INCLUSIVE
 
 **Target:** WCAG 2.2 Level AA
 **Last updated:** ____
 
 ## Scope
-Web component (`/widget/savanna-assistant.v1.js`), demo page (`/demo`), support console (`/agent`), SMS simulator (`/sms-demo`).
+Web component (`<inclusive-assistant>`), demo page (`/demo`), support console (`/agent`), SMS simulator (`/sms-demo`). The previous widget element and asset URL remain as compatibility aliases.
 Telegram and SMS are text-only and rely on the user's own messaging app. Messages are short and plain, in English and Amharic.
 
 ## Results
@@ -32,7 +32,7 @@ Manual checks listed above are being completed; results are filled in as each is
 - Buttons are at least 44px tall. Focus ring is 3px and visible in both themes.
 - Screen sharing is started by the learner and ends with the browser's own control.
 - Interview accommodations never require a diagnosis.
-- Voice capture starts only after the learner activates the microphone. Recordings are limited, transmitted for Addis transcription, and not persisted by Savanna.
+- Voice capture starts only after the learner activates the microphone. Recordings are limited, transmitted for Addis transcription, and not persisted by INCLUSIVE.
 - Speech transcripts remain editable text; audio playback requires explicit user activation and keeps the answer text available.
 
 ## Known issues and limitations

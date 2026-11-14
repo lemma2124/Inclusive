@@ -26,6 +26,7 @@ import { readSpeechUpload } from './speech/upload.js';
 const MAX_BODY = 16 * 1024;
 const WIDGET_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'widget');
 const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8' };
+const WIDGET_ASSET_ALIASES = { 'inclusive-assistant.v1.js': 'savanna-assistant.v1.js' };
 const ID = '([0-9a-f-]{36})';
 const HANDOFF_RE = new RegExp(`^/v1/handoff/${ID}(?:/(messages|close|signal))?$`);
 const AGENT_RE = new RegExp(`^/v1/agent/handoffs(?:/${ID}(?:/(messages|close|signal))?)?$`);
@@ -164,7 +165,8 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
 
       // Widget files and pages. Names are a flat, safe pattern, so nothing outside widget/ is ever served.
       if (GET && (PAGES[path] || path.startsWith('/widget/'))) {
-        const name = PAGES[path] || path.slice('/widget/'.length);
+        const requestedName = PAGES[path] || path.slice('/widget/'.length);
+        const name = WIDGET_ASSET_ALIASES[requestedName] || requestedName;
         if (!/^[A-Za-z0-9._-]+$/.test(name) || !MIME[extname(name)]) return fail(404, 'not_found', 'Not found.');
         let file;
         try { file = await readFile(join(WIDGET_DIR, name)); } catch { return fail(404, 'not_found', 'Not found.'); }
@@ -298,7 +300,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (cfg.agentKey && cfg.agentKey.length < 16) console.warn('AGENT_KEY is short. Use at least 16 random characters.');
   const { server } = createApp(cfg);
   server.listen(cfg.port, () => {
-    console.log(`Savanna Assistant API on http://localhost:${cfg.port} (providers: ${cfg.providers.join(', ')})`);
+    console.log(`INCLUSIVE API on http://localhost:${cfg.port} (providers: ${cfg.providers.join(', ')})`);
     console.log(`Demo: http://localhost:${cfg.port}/demo   Support console: ${cfg.agentKey ? `http://localhost:${cfg.port}/agent` : 'OFF (set AGENT_KEY)'}`);
   });
 }

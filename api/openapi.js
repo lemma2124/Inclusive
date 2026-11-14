@@ -10,7 +10,7 @@ const waitParam = { name: 'wait', in: 'query', schema: { type: 'integer', minimu
 export const openapi = {
   openapi: '3.0.3',
   info: {
-    title: 'Savanna Assistant API',
+    title: 'INCLUSIVE API',
     version: '0.2.0',
     description: 'Course-grounded tutor in Amharic and English, with human handoff. Answers only from course content, with citations. All errors use one format: { "error": { "code", "message" } }.'
   },
