@@ -2,7 +2,8 @@
     Reuses the same /v1/chat and /v1/handoff endpoints as the web widget,
     so grounding, citations, and human handoff behave identically here. */
 
-import { detectLang } from '../api/retrieval/tokenize.js';
+import { detectChannelLanguage, parseChannelLanguage } from '../api/sms/language.js';
+import { applyTelegramLanguage, parseTelegramInput } from './commands.js';
 
 try { process.loadEnvFile('.env'); } catch { /* .env is optional */ }
 
@@ -18,7 +19,14 @@ if (!TOKEN) {
 
 const STRINGS = {
     en: {
-        welcome: 'Welcome to INCLUSIVE! Ask me anything about your course, in English or Amharic. Send /am for Amharic, /en for English, /human to ask for a person, /jobs for job alerts, /accommodation for interview accommodations.',
+        welcome: 'Welcome to INCLUSIVE! Ask about your course in English or Amharic. Use /help for commands, /language to choose a language, /jobs for job information and alerts, or /support to request a person.',
+        help: 'Commands: /learn ask a course question; /jobs job information and alerts; /support request a person; /language choose English, Amharic, Afaan Oromo, or Tigrinya; /help show this menu. Course chat is currently English and Amharic.',
+        languagePrompt: 'Choose a language: /en English, /am Amharic, /om Afaan Oromo, /ti Tigrinya.',
+        languageSet: 'Language preference updated.',
+        learnPrompt: 'Type your course question after /learn, or send the question directly.',
+        languageUnclear: 'I could not identify your language. Please use /language to choose one.',
+        chatUnsupported: 'Course chat currently supports English and Amharic only. Your language preference is saved for this bot session; use /en or /am to ask course questions.',
+        commandUnknown: 'I did not recognize that command. Send /help to see available options.',
         consent: 'A person can help you. If you continue, they will see your questions and answers from this chat. Please do not share passwords or ID numbers.',
         yes: 'Yes, connect me', no: 'No, thanks',
         cancelled: 'OK. You can keep asking me questions.',
@@ -45,7 +53,14 @@ const STRINGS = {
         accommodationWaiting: 'Your request was sent to a person. They may reply here. Send /end to stop.'
     },
     am: {
-        welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! ስለ ኮርስዎ በአማርኛ ወይም በእንግሊዝኛ ይጠይቁኝ። ለአማርኛ /am፣ ለእንግሊዝኛ /en፣ ሰው ለማግኘት /human፣ ለስራ ማስታወቂያ /jobs፣ ለቃለ መጠይቅ ድጋፍ /accommodation ይላኩ።',
+        welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! በአማርኛ ወይም በእንግሊዝኛ ስለ ኮርስዎ ይጠይቁ። ትዕዛዞችን ለማየት /help፣ ቋንቋ ለመምረጥ /language፣ ለሥራ መረጃ /jobs ወይም ሰው ለማግኘት /support ይላኩ።',
+        help: 'ትዕዛዞች፦ /learn የኮርስ ጥያቄ፣ /jobs የስራ መረጃ፣ /support ሰው ለማግኘት፣ /language ቋንቋ ለመምረጥ፣ /help ይህን ዝርዝር ለማየት። የኮርስ ውይይት አማርኛንና እንግሊዝኛን ይደግፋል።',
+        languagePrompt: 'ቋንቋ ይምረጡ፦ /en እንግሊዝኛ፣ /am አማርኛ፣ /om Afaan Oromo፣ /ti ትግርኛ።',
+        languageSet: 'ቋንቋ ተቀይሯል።',
+        learnPrompt: 'ጥያቄዎን ከ /learn በኋላ ይጻፉ ወይም ጥያቄዎን በቀጥታ ይላኩ።',
+        languageUnclear: 'ቋንቋውን መለየት አልቻልኩም። /language በመጠቀም ቋንቋ ይምረጡ።',
+        chatUnsupported: 'የኮርስ ውይይት አማርኛንና እንግሊዝኛን ብቻ ይደግፋል። ለጥያቄዎች /en ወይም /am ይጠቀሙ።',
+        commandUnknown: 'ይህን ትዕዛዝ አላወቅሁትም። የሚገኙትን አማራጮች ለማየት /help ይላኩ።',
         consent: 'አንድ ሰው ሊረዳዎት ይችላል። ከቀጠሉ፣ በዚህ ውይይት ውስጥ ያሉትን ጥያቄዎችዎን እና መልሶቹን ያያሉ። እባክዎ የይለፍ ቃል ወይም የመታወቂያ ቁጥር አያጋሩ።',
         yes: 'አዎ፣ አገናኙኝ', no: 'አይ፣ አመሰግናለሁ',
         cancelled: 'እሺ። መጠየቅ መቀጠል ይችላሉ።',
@@ -73,11 +88,67 @@ const STRINGS = {
     }
 };
 
-const t = (s, key) => STRINGS[s.lang || 'en'][key];
+STRINGS.om = {
+    welcome: 'Baga gara INCLUSIVE dhuftan! /learn, /jobs, /support, /language yookaan /help ergaa.',
+    help: 'Ajajawwan: /learn gaaffii barnootaa; /jobs odeeffannoo hojii; /support nama; /language afaan filadhu; /help gargaarsa.',
+    languagePrompt: 'Afaan: /en English, /am Amharic, /om Afaan Oromoo, /ti Tigrinya.',
+    languageSet: 'Afaan filatame.',
+    learnPrompt: 'Gaaffii keessan /learn booda barreessaa yookaan kallattiin ergaa.',
+    languageUnclear: 'Afaan adda baasuu hin dandeenye. /language fayyadamuun filadhaa.',
+    chatUnsupported: 'Haaromsi barnootaa yeroo ammaa English fi Amharic qofa deeggara. Gaaffii barnootaaf /en yookaan /am fayyadamaa.',
+    commandUnknown: 'Ajaja kana hin beekne. /help ergaa.',
+    consent: 'Namni tokko isin gargaaruu dandaʼa. Itti fufnaan, gaaffii fi deebii keessan ni arga. Iccitii hin erginaa.',
+    yes: 'Eeyyee, na qunnamsiisaa', no: 'Lakki, galatoomaa', cancelled: 'Tole. Gaaffii gaafachuu itti fufuu dandeessu.',
+    connecting: 'Nama waliin isin walqunnamsiisaa jirra…', waiting: 'Gaaffiin keessan ergameera. Nama isin qunnamu eegaa. Dhaabuuf /end ergaa.',
+    joined: 'Namni deeggarsa kennu isin waliin jira.', closedAgent: 'Namni deeggarsa kennu haasawa cufeera.', endedYou: 'Haasawa nama waliin taasiftan xumuraniittu.',
+    lost: 'Walqunnamtiin citeera. /support irra deebiʼaa.', already: 'Nama waliin walqabattaniittu. Dhaabuuf /end ergaa.', noActive: 'Amma nama waliin hin walqabne.',
+    sendFail: 'Ergaa keessan erguu hin dandeenye. Irra deebiʼaa.', busy: 'Deeggarsi yeroo ammaa hojii baayʼee qaba.', sentFail: 'Nama waliin isin walqunnamsiisuu hin dandeenye.',
+    sources: 'Madda:', talk: 'Nama waliin haasaʼi', error: 'Deebii argachuu hin dandeenye. Irra deebiʼaa.', rateLimited: 'Gaaffii baayʼee ergaa jirtu. Xiqqoo eegaa.',
+    voiceUnsupported: 'Ergaa sagalee amma hin dhaggeeffadhu. Gaaffii keessan barreessaa.',
+    jobsSubscribed: 'Beeksisa hojii irratti galmooftaniittu. Dhaabuuf /unsubscribe ergaa.', jobsUnsubscribed: 'Beeksisni hojii dhaabbateera.',
+    accommodationPrompt: 'Afeerraa hojii irratti deeggarsa maal akka barbaaddan ibsaa. Haala fayyaa ibsuun hin barbaachisu. Dhiisuuf /cancel ergaa.',
+    accommodationCancelled: 'Tole. Gaaffiin hin ergamne.', accommodationWaiting: 'Gaaffiin keessan nama deeggarsaaf ergameera.'
+};
+STRINGS.ti = {
+    welcome: 'ናብ INCLUSIVE ብደሓን መጻእኩም! /learn፣ /jobs፣ /support፣ /language ወይ /help ስደዱ።',
+    help: 'ትእዛዛት፦ /learn ሕቶ ትምህርቲ፣ /jobs ሓበሬታ ስራሕ፣ /support ሰብ ሓገዝ፣ /language ቋንቋ ምረጹ፣ /help ሓገዝ።',
+    languagePrompt: 'ቋንቋ፦ /en English፣ /am Amharic፣ /om Afaan Oromoo፣ /ti Tigrinya።',
+    languageSet: 'ቋንቋ ተቐይሩ።',
+    learnPrompt: 'ሕቶኹም ድሕሪ /learn ጽሓፉ ወይ ብቐጥታ ስደዱ።',
+    languageUnclear: 'ቋንቋ ክፈልይ ኣይከኣልኩን። /language ተጠቒምኩም ምረጹ።',
+    chatUnsupported: 'ዝርርብ ትምህርቲ ኣብዚ እዋን Englishን Amharicን ጥራይ ይድግፍ። /en ወይ /am ተጠቐሙ።',
+    commandUnknown: 'ነዚ ትእዛዝ ኣይፈለጥኩዎን። /help ስደዱ።',
+    consent: 'ሓደ ሰብ ክሕግዘኩም ይኽእል። እንተቐጺልኩም ሕቶታትኩምን መልስታትኩምን ክርኢ እዩ። ምስጢር ኣይትስደዱ።',
+    yes: 'እወ፣ ኣራኽቡኒ', no: 'ኣይፋል፣ የቐንየለይ', cancelled: 'ጽቡቕ። ሕቶ ምሕታት ክትቅጽሉ ትኽእሉ።',
+    connecting: 'ምስ ሰብ ነራኽበኩም ኣለና…', waiting: 'ሕቶኹም ተላኢኹ። ሰብ ክሳብ ዝረኽበኩም ተጸበዩ። /end ንምቁራጽ ስደዱ።',
+    joined: 'ሓጋዚ ሰብ ተጸንቢሩ።', closedAgent: 'ሓጋዚ ሰብ ዝርርብ ዓጽዩ።', endedYou: 'ዝርርብኩም ኣቋሪጽኩም።',
+    lost: 'ርክብ ተቋሪጹ። /support ደጊምኩም ፈትኑ።', already: 'ምስ ሰብ ተራኺብኩም ኣለኹም። /end ንምቁራጽ ስደዱ።', noActive: 'ሕጂ ምስ ሰብ ኣይተራኸብኩምን።',
+    sendFail: 'መልእኽትኹም ኣይተላእከን። ደጊምኩም ፈትኑ።', busy: 'ኣገልግሎት ሓገዝ ሕጂ ተጸሚዱ ኣሎ።', sentFail: 'ምስ ሰብ ከነራኽበኩም ኣይከኣልናን።',
+    sources: 'ምንጪ፦', talk: 'ምስ ሰብ ተዛረቡ', error: 'መልሲ ክንረክብ ኣይከኣልናን። ደጊምኩም ፈትኑ።', rateLimited: 'ብዙሕ ሕቶታት ተላኢኹ። ቁሩብ ተጸበዩ።',
+    voiceUnsupported: 'መልእኽቲ ድምጺ ኣብዚ እዋን ኣይሰምዕን እየ። ብጽሑፍ ስደዱ።',
+    jobsSubscribed: 'ኣብ ሓበሬታ ስራሕ ተመዝጊብኩም። /unsubscribe ንምቁራጽ ስደዱ።', jobsUnsubscribed: 'ሓበሬታ ስራሕ ተቋሪጹ።',
+    accommodationPrompt: 'ኣብ ቃለ መሕትት እንታይ ሓገዝ ከም ዘድልየኩም ግለጹ። ኩነታት ጥዕና ምንጋር ኣየድልን። /cancel ንምስራዝ ስደዱ።',
+    accommodationCancelled: 'ጽቡቕ። ሕቶ ኣይተላእከን።', accommodationWaiting: 'ሕቶኹም ናብ ሓገዝ ተላኢኹ።'
+};
+
+const t = (s, key) => STRINGS[s.lang || 'en'][key] || STRINGS.en[key];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- per-chat state (in memory; resets if the bot restarts) ----
 const sessions = new Map();
+const updateLimits = new Map();
+function limited(chatId, text) {
+    const now = Date.now();
+    let entry = updateLimits.get(chatId);
+    if (!entry || now - entry.startedAt >= 60000) {
+        entry = { startedAt: now, count: 0 };
+        updateLimits.set(chatId, entry);
+    }
+    const command = String(text || '').split(/\s+/, 1)[0].toLowerCase();
+    if (['/help', '/start', '/language', '/lang', '/end', '/en', '/am', '/om', '/ti'].includes(command)) return false;
+    entry.count += 1;
+    return entry.count > 30;
+}
 function session(chatId) {
     let s = sessions.get(chatId);
     if (!s) { s = { lang: null, history: [], handoff: null, pendingAccommodation: false, pendingQuestion: '' }; sessions.set(chatId, s); }
@@ -122,7 +193,11 @@ async function api(method, path, body, token) {
 async function handleText(chatId, s, text) {
     if (s.handoff) return relayToHuman(chatId, s, text);
 
-    const lang = s.lang || detectLang(text);
+    const detected = detectChannelLanguage(text);
+    if (detected && !s.languageExplicit) s.lang = detected;
+    const lang = s.lang;
+    if (!lang) return send(chatId, t(s, 'languageUnclear'));
+    if (lang !== 'en' && lang !== 'am') return send(chatId, t(s, 'chatUnsupported'));
     let data;
     try {
         data = await api('POST', '/v1/chat', { message: text, lang, history: s.history.slice(-4) });
@@ -227,12 +302,35 @@ async function handleUpdate(u) {
     if (msg.voice || msg.audio) return send(chatId, t(s, 'voiceUnsupported'));
     const text = (msg.text || '').trim();
     if (!text) return;
+    if (limited(chatId, text)) return send(chatId, t(s, 'rateLimited'));
+    if (text.length > 1000) return send(chatId, t(s, 'error'));
+    const parsed = parseTelegramInput(text);
+    const { command, argument } = parsed;
 
-    if (text === '/start') return send(chatId, t(s, 'welcome'));
-    if (text === '/en') { s.lang = 'en'; return send(chatId, t(s, 'welcome')); }
-    if (text === '/am') { s.lang = 'am'; return send(chatId, t(s, 'welcome')); }
-    if (text === '/human') return s.handoff ? send(chatId, t(s, 'already')) : consentPrompt(chatId, s);
-    if (text === '/end') {
+    if (command === '/start') {
+        if (!s.lang) s.lang = 'en';
+        return send(chatId, t(s, 'welcome'));
+    }
+    if (command === '/help') return send(chatId, t(s, 'help'));
+    if (command === '/language' || command === '/lang') {
+        const selected = parsed.language;
+        if (!selected) return send(chatId, t(s, 'languagePrompt'));
+        s.lang = selected;
+        s.languageExplicit = true;
+        return send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
+    }
+    if (command === '/en' || command === '/am' || command === '/om' || command === '/ti') {
+        s.lang = command.slice(1);
+        s.languageExplicit = true;
+        return send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
+    }
+    if (!command) {
+        const plainLanguage = applyTelegramLanguage(s, parsed);
+        if (plainLanguage) return send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
+    }
+    if (command === '/learn') return argument ? handleText(chatId, s, argument) : send(chatId, t(s, 'learnPrompt'));
+    if (command === '/support' || command === '/human') return s.handoff ? send(chatId, t(s, 'already')) : consentPrompt(chatId, s);
+    if (command === '/end') {
         if (!s.handoff) return send(chatId, t(s, 'noActive'));
         const h = s.handoff;
         s.handoff = null;
@@ -242,20 +340,32 @@ async function handleUpdate(u) {
     if (s.pendingAccommodation && text.startsWith('/') && text !== '/cancel' && text !== '/accommodation') {
         s.pendingAccommodation = false;
     }
-    if (text === '/jobs') {
-        try { await api('POST', '/v1/jobs/subscribe', { channel: 'telegram', contact: String(chatId), lang: s.lang || 'en' }); return send(chatId, t(s, 'jobsSubscribed')); }
+    if (command === '/jobs') {
+        try {
+            await api('POST', '/v1/jobs/subscribe', { channel: 'telegram', contact: String(chatId), lang: s.lang === 'am' ? 'am' : 'en' });
+            if (s.lang !== 'en' && s.lang !== 'am') return send(chatId, t(s, 'chatUnsupported') + '\n' + t(s, 'jobsSubscribed'));
+            const jobs = await api('POST', '/v1/chat', {
+                message: s.lang === 'am' ? 'የሚገኙ የሥራ መረጃዎችን እና የቃለ መጠይቅ ድጋፍን አሳየኝ።' : 'Show available job information and interview accommodation guidance.',
+                lang: s.lang,
+                history: s.history.slice(-4)
+            });
+            const sources = jobs.citations && jobs.citations.length ? `\n\n${t(s, 'sources')} ${jobs.citations.map((c) => c.title).join('; ')}` : '';
+            return send(chatId, `${jobs.answer}${sources}\n\n${t(s, 'jobsSubscribed')}`);
+        }
         catch (e) { return send(chatId, t(s, 'error')); }
     }
-    if (text === '/unsubscribe') {
+    if (command === '/unsubscribe') {
         try { await api('POST', '/v1/jobs/unsubscribe', { channel: 'telegram', contact: String(chatId) }); return send(chatId, t(s, 'jobsUnsubscribed')); }
         catch (e) { return send(chatId, t(s, 'error')); }
     }
-    if (text === '/accommodation') {
+    if (command === '/accommodation') {
         if (s.handoff) return send(chatId, t(s, 'already'));
         s.pendingAccommodation = true;
         return send(chatId, t(s, 'accommodationPrompt'));
     }
-    if (text === '/cancel' && s.pendingAccommodation) { s.pendingAccommodation = false; return send(chatId, t(s, 'accommodationCancelled')); }
+    if (command === '/cancel' && s.pendingAccommodation) { s.pendingAccommodation = false; return send(chatId, t(s, 'accommodationCancelled')); }
+
+    if (command.startsWith('/')) return send(chatId, t(s, 'commandUnknown'));
 
     if (s.pendingAccommodation) {
         s.pendingAccommodation = false;
@@ -282,7 +392,12 @@ async function main() {
         if (updates === null) { await sleep(3000); continue; }
         for (const u of updates) {
             offset = u.update_id + 1;
-            handleUpdate(u).catch((e) => console.error('handleUpdate error:', e));
+            handleUpdate(u).catch((e) => {
+                console.error('handleUpdate error:', e && e.message ? e.message : 'unknown error');
+                const chatId = u.message && u.message.chat ? u.message.chat.id :
+                    u.callback_query && u.callback_query.message && u.callback_query.message.chat ? u.callback_query.message.chat.id : null;
+                if (chatId) send(chatId, t(session(chatId), 'error')).catch(() => {});
+            });
         }
     }
 }

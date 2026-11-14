@@ -97,12 +97,13 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
   const jobStore = createJobStore();
   const telegramSender = createTelegramSender(cfg.telegramBotToken);
   const alerts = createAlertService({ jobStore, telegramSender, smsAdapter });
-  const sms = cfg.smsInboundKey ? createSmsRuntime({ chat, store, jobStore, sendOutbound: (to, text) => smsAdapter.send({ to, text }) }) : null;
+  const sms = cfg.smsInboundKey ? createSmsRuntime({ chat, store, jobStore, sendOutbound: (to, text, smsMeta) => smsAdapter.send({ to, text, ...smsMeta }) }) : null;
   const chatLimited = makeLimiter(cfg.rateLimitPerMin);
   const handoffLimited = makeLimiter(cfg.handoffRateLimitPerMin || 5);
   const pollLimited = makeLimiter(240);
   const agentLimited = makeLimiter(240);
   const jobsLimited = makeLimiter(20);
+  const smsLimited = makeLimiter(60);
   const speechLimited = makeLimiter(5);
   const ttsLimited = makeLimiter(5);
   const trusted = (req) => Boolean(cfg.internalKey) && safeEqual(req.headers['x-internal-key'] || '', cfg.internalKey);
@@ -216,9 +217,19 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       if (POST && path === '/v1/sms/inbound') {
         if (!sms) return fail(503, 'sms_disabled', 'The SMS route is off. Set SMS_INBOUND_KEY on the server.');
         if (!safeEqual(bearer(req), cfg.smsInboundKey)) return fail(401, 'unauthorized', 'The SMS inbound key is missing or wrong.', { 'www-authenticate': 'Bearer' });
+        if (smsLimited(ip)) return fail(429, 'rate_limited', 'Too many inbound SMS requests. Please retry later.', { 'retry-after': '60' });
         const b = await readJson(req);
-        sms.handleInbound({ from: b.from, text: b.text }).catch((e) => console.error('SMS handleInbound error:', e));
-        return send(200, { ok: true });
+        if (typeof b.from !== 'string' || typeof b.text !== 'string') return fail(400, 'invalid_sms', 'from and text must be strings.');
+        if (b.text.length > 1000) return fail(413, 'sms_too_long', 'SMS text must be 1000 characters or fewer.');
+        const result = await sms.handleInbound({ from: b.from, text: b.text, messageId: b.messageId, sourceIp: ip });
+        if (result && result.accepted === false) {
+          const codes = { invalid_sender: 'invalid_sender', empty_message: 'invalid_sms', message_too_long: 'sms_too_long', rate_limited: 'rate_limited' };
+          if (result.reason && codes[result.reason]) {
+            return fail(result.reason === 'rate_limited' ? 429 : 400, codes[result.reason], 'The SMS request was not accepted.');
+          }
+          return fail(502, 'sms_delivery_failed', 'The message was received, but a reply could not be delivered.');
+        }
+        return send(200, { ok: true, duplicate: Boolean(result && result.duplicate) });
       }
       if (GET && path === '/v1/sms/outbox' && typeof smsAdapter.list === 'function') {
         if (!sms) return fail(503, 'sms_disabled', 'The SMS route is off. Set SMS_INBOUND_KEY on the server.');
