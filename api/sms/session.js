@@ -147,6 +147,7 @@ export function createSmsRuntime({ chat, store, jobStore, sendOutbound, maxPerMi
         }
         return s;
     }
+    const t = (s, key) => (STRINGS[s.lang] || STRINGS.en)[key];
 
     const t = (s, key) => STRINGS[s.lang || 'en'][key] || STRINGS.en[key] || '';
 

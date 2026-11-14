@@ -88,50 +88,7 @@ const STRINGS = {
     }
 };
 
-STRINGS.om = {
-    welcome: 'Baga gara INCLUSIVE dhuftan! /learn, /jobs, /support, /language yookaan /help ergaa.',
-    help: 'Ajajawwan: /learn gaaffii barnootaa; /jobs odeeffannoo hojii; /support nama; /language afaan filadhu; /help gargaarsa.',
-    languagePrompt: 'Afaan: /en English, /am Amharic, /om Afaan Oromoo, /ti Tigrinya.',
-    languageSet: 'Afaan filatame.',
-    learnPrompt: 'Gaaffii keessan /learn booda barreessaa yookaan kallattiin ergaa.',
-    languageUnclear: 'Afaan adda baasuu hin dandeenye. /language fayyadamuun filadhaa.',
-    chatUnsupported: 'Haaromsi barnootaa yeroo ammaa English fi Amharic qofa deeggara. Gaaffii barnootaaf /en yookaan /am fayyadamaa.',
-    commandUnknown: 'Ajaja kana hin beekne. /help ergaa.',
-    consent: 'Namni tokko isin gargaaruu dandaʼa. Itti fufnaan, gaaffii fi deebii keessan ni arga. Iccitii hin erginaa.',
-    yes: 'Eeyyee, na qunnamsiisaa', no: 'Lakki, galatoomaa', cancelled: 'Tole. Gaaffii gaafachuu itti fufuu dandeessu.',
-    connecting: 'Nama waliin isin walqunnamsiisaa jirra…', waiting: 'Gaaffiin keessan ergameera. Nama isin qunnamu eegaa. Dhaabuuf /end ergaa.',
-    joined: 'Namni deeggarsa kennu isin waliin jira.', closedAgent: 'Namni deeggarsa kennu haasawa cufeera.', endedYou: 'Haasawa nama waliin taasiftan xumuraniittu.',
-    lost: 'Walqunnamtiin citeera. /support irra deebiʼaa.', already: 'Nama waliin walqabattaniittu. Dhaabuuf /end ergaa.', noActive: 'Amma nama waliin hin walqabne.',
-    sendFail: 'Ergaa keessan erguu hin dandeenye. Irra deebiʼaa.', busy: 'Deeggarsi yeroo ammaa hojii baayʼee qaba.', sentFail: 'Nama waliin isin walqunnamsiisuu hin dandeenye.',
-    sources: 'Madda:', talk: 'Nama waliin haasaʼi', error: 'Deebii argachuu hin dandeenye. Irra deebiʼaa.', rateLimited: 'Gaaffii baayʼee ergaa jirtu. Xiqqoo eegaa.',
-    voiceUnsupported: 'Ergaa sagalee amma hin dhaggeeffadhu. Gaaffii keessan barreessaa.',
-    jobsSubscribed: 'Beeksisa hojii irratti galmooftaniittu. Dhaabuuf /unsubscribe ergaa.', jobsUnsubscribed: 'Beeksisni hojii dhaabbateera.',
-    accommodationPrompt: 'Afeerraa hojii irratti deeggarsa maal akka barbaaddan ibsaa. Haala fayyaa ibsuun hin barbaachisu. Dhiisuuf /cancel ergaa.',
-    accommodationCancelled: 'Tole. Gaaffiin hin ergamne.', accommodationWaiting: 'Gaaffiin keessan nama deeggarsaaf ergameera.'
-};
-STRINGS.ti = {
-    welcome: 'ናብ INCLUSIVE ብደሓን መጻእኩም! /learn፣ /jobs፣ /support፣ /language ወይ /help ስደዱ።',
-    help: 'ትእዛዛት፦ /learn ሕቶ ትምህርቲ፣ /jobs ሓበሬታ ስራሕ፣ /support ሰብ ሓገዝ፣ /language ቋንቋ ምረጹ፣ /help ሓገዝ።',
-    languagePrompt: 'ቋንቋ፦ /en English፣ /am Amharic፣ /om Afaan Oromoo፣ /ti Tigrinya።',
-    languageSet: 'ቋንቋ ተቐይሩ።',
-    learnPrompt: 'ሕቶኹም ድሕሪ /learn ጽሓፉ ወይ ብቐጥታ ስደዱ።',
-    languageUnclear: 'ቋንቋ ክፈልይ ኣይከኣልኩን። /language ተጠቒምኩም ምረጹ።',
-    chatUnsupported: 'ዝርርብ ትምህርቲ ኣብዚ እዋን Englishን Amharicን ጥራይ ይድግፍ። /en ወይ /am ተጠቐሙ።',
-    commandUnknown: 'ነዚ ትእዛዝ ኣይፈለጥኩዎን። /help ስደዱ።',
-    consent: 'ሓደ ሰብ ክሕግዘኩም ይኽእል። እንተቐጺልኩም ሕቶታትኩምን መልስታትኩምን ክርኢ እዩ። ምስጢር ኣይትስደዱ።',
-    yes: 'እወ፣ ኣራኽቡኒ', no: 'ኣይፋል፣ የቐንየለይ', cancelled: 'ጽቡቕ። ሕቶ ምሕታት ክትቅጽሉ ትኽእሉ።',
-    connecting: 'ምስ ሰብ ነራኽበኩም ኣለና…', waiting: 'ሕቶኹም ተላኢኹ። ሰብ ክሳብ ዝረኽበኩም ተጸበዩ። /end ንምቁራጽ ስደዱ።',
-    joined: 'ሓጋዚ ሰብ ተጸንቢሩ።', closedAgent: 'ሓጋዚ ሰብ ዝርርብ ዓጽዩ።', endedYou: 'ዝርርብኩም ኣቋሪጽኩም።',
-    lost: 'ርክብ ተቋሪጹ። /support ደጊምኩም ፈትኑ።', already: 'ምስ ሰብ ተራኺብኩም ኣለኹም። /end ንምቁራጽ ስደዱ።', noActive: 'ሕጂ ምስ ሰብ ኣይተራኸብኩምን።',
-    sendFail: 'መልእኽትኹም ኣይተላእከን። ደጊምኩም ፈትኑ።', busy: 'ኣገልግሎት ሓገዝ ሕጂ ተጸሚዱ ኣሎ።', sentFail: 'ምስ ሰብ ከነራኽበኩም ኣይከኣልናን።',
-    sources: 'ምንጪ፦', talk: 'ምስ ሰብ ተዛረቡ', error: 'መልሲ ክንረክብ ኣይከኣልናን። ደጊምኩም ፈትኑ።', rateLimited: 'ብዙሕ ሕቶታት ተላኢኹ። ቁሩብ ተጸበዩ።',
-    voiceUnsupported: 'መልእኽቲ ድምጺ ኣብዚ እዋን ኣይሰምዕን እየ። ብጽሑፍ ስደዱ።',
-    jobsSubscribed: 'ኣብ ሓበሬታ ስራሕ ተመዝጊብኩም። /unsubscribe ንምቁራጽ ስደዱ።', jobsUnsubscribed: 'ሓበሬታ ስራሕ ተቋሪጹ።',
-    accommodationPrompt: 'ኣብ ቃለ መሕትት እንታይ ሓገዝ ከም ዘድልየኩም ግለጹ። ኩነታት ጥዕና ምንጋር ኣየድልን። /cancel ንምስራዝ ስደዱ።',
-    accommodationCancelled: 'ጽቡቕ። ሕቶ ኣይተላእከን።', accommodationWaiting: 'ሕቶኹም ናብ ሓገዝ ተላኢኹ።'
-};
-
-const t = (s, key) => STRINGS[s.lang || 'en'][key] || STRINGS.en[key];
+const t = (s, key) => (STRINGS[s.lang] || STRINGS.en)[key];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- per-chat state (in memory; resets if the bot restarts) ----

@@ -13,13 +13,13 @@
     }
   } catch (e) { /* ignore */ }
 
-  var SPEECH_LANG = { en: 'en-US', am: 'am-ET' };
+  var SPEECH_LANG = { en: 'en-US', am: 'am-ET', ti: 'ti-ER', om: 'om-ET', so: 'so-SO', ar: 'ar' };
   var ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
   var STRINGS = {
     en: {
       heading: 'INCLUSIVE course assistant',
-      welcome: 'Welcome to INCLUSIVE! Ask me anything about your course. You can type in English or Amharic.',
+      welcome: 'Welcome to INCLUSIVE! Ask me anything about your course. Chat replies are available in English, Amharic, Tigrinya, Afaan Oromo, Somali, and Arabic.',
       conversation: 'Conversation',
       langGroup: 'Language',
       label: 'Type your question',
@@ -28,12 +28,11 @@
       mic: 'Ask by voice',
       speechLanguage: 'Speech language',
       cancelRecording: 'Cancel recording',
-      speechHint: 'Speech goes to Addis AI for transcription and may incur charges. English, Amharic, Afaan Oromo, and Tigrinya are supported for speech input.',
+      speechHint: 'Speech goes to Addis AI for transcription and may incur charges. Voice transcription is available in English, Amharic, Afaan Oromo, and Tigrinya. Typed chat also supports Somali and Arabic.',
       listening: 'Listening…',
       heard: 'Heard you. Check the text, then send.',
       transcribing: 'Transcribing your recording…',
       speechReady: 'Transcription ready. Review or edit it before sending.',
-      speechChatUnsupported: 'This transcript is ready, but course chat currently supports English and Amharic only. Edit it into one of those languages before sending.',
       recordingTooLong: 'Recording stopped at the 30-second limit. Transcribing now.',
       micTooLarge: 'This recording is too large to upload. Please try again with a shorter recording.',
       speechTimeout: 'Speech recognition took too long. Please try a shorter recording.',
@@ -94,7 +93,7 @@
     },
     am: {
       heading: 'INCLUSIVE የኮርስ ረዳት',
-      welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! ስለ ኮርሱ ማንኛውንም ጥያቄ ይጠይቁኝ። በአማርኛ ወይም በእንግሊዝኛ መጻፍ ይችላሉ።',
+      welcome: 'ወደ INCLUSIVE እንኳን በደህና በመጡ። ስለ ኮርሱ ይጠይቁ። በእንግሊዝኛ፣ በአማርኛ፣ በትግርኛ፣ በAfaan Oromo፣ በSoomaali ወይም በالعربية መልስ ማግኘት ይችላሉ።',
       conversation: 'ውይይት',
       langGroup: 'ቋንቋ',
       label: 'ጥያቄዎን ይጻፉ',
@@ -103,12 +102,11 @@
       mic: 'በድምፅ ይጠይቁ',
       speechLanguage: 'የድምፅ ቋንቋ',
       cancelRecording: 'ቀረጻውን ሰርዝ',
-      speechHint: 'ቀረጻው ለመተርጎም ወደ Addis AI ይላካል፤ ክፍያ ሊኖረው ይችላል። እንግሊዝኛ፣ አማርኛ፣ Afaan Oromo እና ትግርኛ ይደገፋሉ።',
+      speechHint: 'ቀረጻው ለመጻፍ ወደ Addis AI ይላካል፤ ክፍያ ሊኖረው ይችላል። የድምፅ መተርጎም በእንግሊዝኛ፣ በአማርኛ፣ በAfaan Oromo እና በትግርኛ ይደገፋል። በጽሑፍ ውይይት ሶማሊኛና ዓረብኛም ይደገፋሉ።',
       listening: 'እየሰማሁ ነው…',
       heard: 'ሰምቻለሁ። ጽሑፉን ይመልከቱ፣ ከዚያ ይላኩ።',
       transcribing: 'ቀረጻዎን ወደ ጽሑፍ እየቀየርኩ ነው…',
       speechReady: 'ጽሑፉ ዝግጁ ነው። ከመላክዎ በፊት ይመልከቱት ወይም ያስተካክሉት።',
-      speechChatUnsupported: 'ጽሑፉ ዝግጁ ነው፤ የኮርስ ውይይቱ አሁን እንግሊዝኛን እና አማርኛን ብቻ ይደግፋል። ከመላክዎ በፊት ወደ ከእነዚህ ቋንቋዎች ያስተካክሉት።',
       recordingTooLong: 'ቀረጻው የ30 ሰከንድ ገደቡ ላይ ቆሟል። አሁን ወደ ጽሑፍ እየተቀየረ ነው።',
       micTooLarge: 'ቀረጻው በጣም ትልቅ ነው። እባክዎ አጭር ቀረጻ ይሞክሩ።',
       speechTimeout: 'የድምፅ መተርጎሙ ብዙ ጊዜ ወስዷል። እባክዎ አጭር ቀረጻ ይሞክሩ።',
@@ -166,6 +164,114 @@
       accommodation: 'የቃለ መጠይቅ ድጋፍ ይጠይቁ',
       accommodationPrompt: 'ለቃለ መጠይቅ ምን እንደሚያስፈልግዎ ይግለጹ (ለምሳሌ፦ ተጨማሪ ጊዜ፣ የምልክት ቋንቋ አስተርጓሚ፣ ወይም ጸጥ ያለ ክፍል)። የህክምና ሁኔታ መግለጽ አያስፈልግም። ከዚያ ላክ ይጫኑ።',
       accommodationWaiting: 'ጥያቄዎ ለሰው ተልኳል። እዚህ ሊጽፉልዎት ይችላሉ።'
+    },
+    ti: {
+      heading: 'INCLUSIVE ሓጋዚ ትምህርቲ',
+      welcome: 'እንቋዕ ናብ INCLUSIVE ብደሓን መጻእኩም። ብዛዕባ ትምህርትኹም ሕተቱ። ብእንግሊዝኛ፣ ብኣምሓርኛ፣ ብትግርኛ፣ Afaan Oromo፣ Soomaali ወይ ዓረብኛ መልሲ ክትረኽቡ ትኽእሉ።',
+      conversation: 'ዕላል',
+      langGroup: 'ቋንቋ',
+      label: 'ሕቶኻ ጸሓፍ',
+      hint: 'ንምልኣኽ Enter ጽቐጥ። ሓድሽ መስመር ንምጅማር Shift ምስ Enter ጽቐጥ።',
+      send: 'ልኣኽ',
+      mic: 'ብድምጺ ሕተት',
+      speechLanguage: 'ቋንቋ ድምጺ',
+      cancelRecording: 'ቀረጻ ሰርዝ',
+      speechHint: 'ቀረጻ ንምጽሓፍ ናብ Addis AI ይለኣኽ፤ ወጻኢ ክህሉ ይኽእል። ድምጺ ብእንግሊዝኛ፣ ብኣምሓርኛ፣ Afaan Oromo እና ብትግርኛ ይድገፍ። ብጽሑፍ ሶማሊኛን ዓረብኛን እውን ይድገፉ።',
+      speechReady: 'ጽሑፍ ድምጺ ድሉው እዩ። ቅድሚ ምልኣኽካ ኣንብቦ ወይ ኣስተኻኽሎ።',
+      thinking: 'መልሲ እደሊ ኣለኹ…',
+      sources: 'ምንጭታት',
+      readAloud: 'ብድምጺ ኣንብብ',
+      human: 'ምስ ሰብ ተዘራረብ',
+      humanConsent: 'ሰብ ክሕግዘካ ይኽእል። እንተቐጺልካ፣ ኣብዚ ዕላል ዘለዉ ሕቶታትካን መልስታትካን ክርኢ እዩ። ሚስጢራዊ ቃል ወይ ቁጽሪ መንነት ኣይትለኣኽ።',
+      humanYes: 'እወ፣ ኣራኽበኒ',
+      humanNo: 'ኣይፋል፣ የቐንየለይ',
+      connecting: 'እየ የራኽበካ ዘለኹ…',
+      humanMode: 'ምስ ሰብ ትዛረብ ኣለኻ',
+      humanEnd: 'ምስ ሰብ ዘለኻ ዕላል ዛዝም',
+      error: 'ይቕሬታ፣ ሕጂ መልሲ ክረክብ ኣይከኣልኩን። እንደገና ፈትን።',
+      rateLimited: 'ብዙሕ ሕቶታት ተላኢኾም። ቁሩብ ተጸበ እሞ እንደገና ፈትን።',
+      accommodation: 'ናይ ቃለ መጠይቕ ሓገዝ ሕተት'
+    },
+    om: {
+      heading: 'Gargaaraa Koorsii INCLUSIVE',
+      welcome: 'Baga gara INCLUSIVE dhuftan! Waa’ee koorsii keessanii gaafadhaa. Afaan Ingiliffaa, Amaariffaa, Tigiree, Afaan Oromo, Soomaali fi Arabiffaan deebii argachuu dandeessu.',
+      conversation: 'Haasa’a',
+      langGroup: 'Afaan',
+      label: 'Gaaffii kee barreessi',
+      hint: 'Erguuf Enter tuqi. Sarara haaraa jalqabuuf Shift fi Enter waliin tuqi.',
+      send: 'Ergi',
+      mic: 'Sagaleedhaan gaafadhu',
+      speechLanguage: 'Afaan sagalee',
+      cancelRecording: 'Waraabbiicha haqi',
+      speechHint: 'Sagaleen gara Addis AItti barreeffama; kaffaltiin jiraachuu danda’a. Sagalee Ingiliffaa, Amaariffaa, Afaan Oromo fi Tigiree ni deeggara. Haasaan barreeffamaa Soomaali fi Arabiffaas ni deeggara.',
+      speechReady: 'Waraabbiin barreeffameera. Erguun dura dubbisi ykn gulaali.',
+      thinking: 'Deebii barbaadaa jira…',
+      sources: 'Maddoota',
+      readAloud: 'Sagaleedhaan dubbisi',
+      human: 'Nama waliin haasa’i',
+      humanConsent: 'Namni tokko si gargaaruu danda’a. Yoo itti fuftan, gaaffii fi deebii haasaa kanaa ni arga. Maaloo icciitii ykn lakkoofsa eenyummaa hin ergin.',
+      humanYes: 'Eeyyee, na qunnamsiisi',
+      humanNo: 'Lakki, galatoomi',
+      connecting: 'Si qunnamsiisaa jira…',
+      humanMode: 'Nama waliin haasa’aa jirta',
+      humanEnd: 'Haasa’a nama waliin jiru xumuri',
+      error: 'Dhiifama, amma deebii argachuu hin dandeenye. Maaloo irra deebi’ii yaali.',
+      rateLimited: 'Gaaffiin baay’een yeroo tokkotti dhufe. Xiqqoo eegiitii irra deebi’ii yaali.',
+      accommodation: 'Deeggarsa af-gaaffii hojii gaafadhu'
+    },
+    so: {
+      heading: 'Kaaliyaha koorsada INCLUSIVE',
+      welcome: 'Ku soo dhowow INCLUSIVE! Weydii su’aal ku saabsan koorsadaada. Jawaab waxaad ku heli kartaa Ingiriisi, Amxaari, Tigrinya, Afaan Oromo, Soomaali ama Carabi.',
+      conversation: 'Wadahadal',
+      langGroup: 'Luqad',
+      label: 'Qor su’aashaada',
+      hint: 'Riix Enter si aad u dirto. Riix Shift iyo Enter si aad sadar cusub u bilowdo.',
+      send: 'Dir',
+      mic: 'Cod ku weydii',
+      speechLanguage: 'Luqadda codka',
+      cancelRecording: 'Jooji duubista',
+      speechHint: 'Codka waxaa loo diraa Addis AI si qoraal loogu beddelo; kharash ayaa jiri kara. Codka Ingiriisiga, Amxaariga, Afaan Oromo iyo Tigrinya waa la taageeraa. Qoraal ahaan, Soomaali iyo Carabi sidoo kale waa la taageeraa.',
+      speechReady: 'Qoraalka codku waa diyaar. Dib u eeg ama sax ka hor intaadan dirin.',
+      thinking: 'Jawaab ayaa la raadinayaa…',
+      sources: 'Ilaha',
+      readAloud: 'Cod dheer ku akhri',
+      human: 'Qof la hadal',
+      humanConsent: 'Qof ayaa ku caawin kara. Haddii aad sii waddo, wuxuu arki doonaa su’aalaha iyo jawaabaha wada sheekaysigan. Ha wadaagin furaha sirta ah ama lambarka aqoonsiga.',
+      humanYes: 'Haa, i xidh',
+      humanNo: 'Maya, mahadsanid',
+      connecting: 'Waa lagu xidhayaa…',
+      humanMode: 'Waxaad la hadlaysaa qof',
+      humanEnd: 'Jooji wada hadalka qofka',
+      error: 'Waan ka xunnahay, hadda jawaab lama helin. Fadlan mar kale isku day.',
+      rateLimited: 'Su’aalo badan ayaa hal mar yimid. Sug wax yar oo mar kale isku day.',
+      accommodation: 'Codso taageero wareysi shaqo'
+    },
+    ar: {
+      heading: 'مساعد التعلّم من INCLUSIVE',
+      welcome: 'مرحبًا بك في INCLUSIVE! اطرح سؤالًا عن الدورة. يمكن أن تكون الإجابة بالإنجليزية أو الأمهرية أو التغرينية أو الأورومية أو الصومالية أو العربية.',
+      conversation: 'المحادثة',
+      langGroup: 'اللغة',
+      label: 'اكتب سؤالك',
+      hint: 'اضغط Enter للإرسال. اضغط Shift مع Enter لبدء سطر جديد.',
+      send: 'إرسال',
+      mic: 'اسأل بالصوت',
+      speechLanguage: 'لغة الصوت',
+      cancelRecording: 'إلغاء التسجيل',
+      speechHint: 'يُرسل التسجيل إلى Addis AI لتحويله إلى نص وقد تُفرض رسوم. يتوفر تحويل الصوت للإنجليزية والأمهرية والأورومية والتغرينية. وتدعم المحادثة النصية أيضًا الصومالية والعربية.',
+      speechReady: 'أصبح النص جاهزًا. راجعه أو عدّله قبل الإرسال.',
+      thinking: 'جارٍ البحث عن إجابة…',
+      sources: 'المصادر',
+      readAloud: 'اقرأ بصوت مرتفع',
+      human: 'تحدث إلى شخص',
+      humanConsent: 'يمكن لشخص مساعدتك. إذا تابعت، فسيطّلع على أسئلتك وإجاباتك في هذه المحادثة. لا تشارك كلمات المرور أو أرقام الهوية.',
+      humanYes: 'نعم، أوصلني بشخص',
+      humanNo: 'لا، شكرًا',
+      connecting: 'جارٍ توصيلك…',
+      humanMode: 'أنت تتحدث مع شخص',
+      humanEnd: 'إنهاء المحادثة مع الشخص',
+      error: 'عذرًا، تعذّر الحصول على إجابة الآن. حاول مرة أخرى.',
+      rateLimited: 'وصلت أسئلة كثيرة في وقت واحد. انتظر قليلًا ثم حاول مجددًا.',
+      accommodation: 'اطلب ترتيبات لمقابلة العمل'
     }
   };
 
@@ -180,7 +286,7 @@
     '.box{display:flex;flex-direction:column;gap:.75rem;width:100%;padding:1rem;background:var(--sa-bg);color:var(--sa-fg);border:2px solid var(--sa-border);border-radius:.75rem}',
     '.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}',
     '.title{margin:0;font-size:1.25rem}',
-    '.langs{display:flex;gap:.25rem}',
+    '.langs{display:flex;flex-wrap:wrap;gap:.25rem}',
     '.mode{margin:0;padding:.375rem .75rem;font-weight:700;color:var(--sa-on-accent);background:var(--sa-accent);border-radius:.5rem}',
     'button{font:inherit;min-width:2.75rem;min-height:2.75rem;padding:.5rem 1rem;color:var(--sa-accent);background:var(--sa-bg);border:2px solid var(--sa-accent);border-radius:.5rem;cursor:pointer}',
     'button[aria-pressed="true"],button.primary{color:var(--sa-on-accent);background:var(--sa-accent)}',
@@ -218,6 +324,10 @@
     '<div class="langs" id="langs" role="group">',
     '<button type="button" data-l="en" lang="en" aria-pressed="false">English</button>',
     '<button type="button" data-l="am" lang="am" aria-pressed="false">አማርኛ</button>',
+    '<button type="button" data-l="ti" lang="ti">ትግርኛ</button>',
+    '<button type="button" data-l="om" lang="om">Afaan Oromo</button>',
+    '<button type="button" data-l="so" lang="so">Soomaali</button>',
+    '<button type="button" data-l="ar" lang="ar">العربية</button>',
     '</div>',
     '</header>',
     '<p class="mode" id="mode" data-k="humanMode" hidden></p>',
@@ -230,7 +340,7 @@
     '<div class="speech-tools">',
     '<label for="speechLang" data-k="speechLanguage"></label>',
     '<select id="speechLang" aria-describedby="speechHint">',
-    '<option value="en">English</option><option value="am">አማርኛ</option><option value="om">Afaan Oromo</option><option value="ti">ትግርኛ</option>',
+    '<option value="en" lang="en">English</option><option value="am" lang="am">አማርኛ</option><option value="ti" lang="ti">ትግርኛ</option><option value="om" lang="om">Afaan Oromo</option><option value="so" lang="so">Soomaali</option><option value="ar" lang="ar">العربية</option>',
     '</select>',
     '<p class="hint" id="speechHint" data-k="speechHint"></p>',
     '</div>',
@@ -252,7 +362,11 @@
     if (text) { n.textContent = text; }
     return n;
   }
-  function guessLang(t) { return /[\u1200-\u139F]/.test(t) ? 'am' : 'en'; }
+  function guessLang(t, fallback) {
+    if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(t)) { return 'ar'; }
+    if (/[\u1200-\u139F]/.test(t)) { return fallback || 'am'; }
+    return fallback || 'en';
+  }
   function isHttp(u) { return /^https?:\/\//i.test(u || ''); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -315,7 +429,10 @@
       var l = String(this.getAttribute('lang') || 'en').toLowerCase().slice(0, 2);
       return STRINGS[l] ? l : 'en';
     }
-    _t(k) { return STRINGS[this._lang()][k]; }
+    _t(k) {
+      var value = STRINGS[this._lang()][k];
+      return value === undefined ? STRINGS.en[k] : value;
+    }
 
     _emit(name, detail, cancelable) {
       var ev = new CustomEvent('inclusive-assistant:' + name, {
@@ -427,7 +544,8 @@
     _fill(root) {
       var ui = STRINGS[this._lang()];
       Array.prototype.forEach.call(root.querySelectorAll('[data-k]'), function (n) {
-        var v = ui[n.getAttribute('data-k')];
+        var key = n.getAttribute('data-k');
+        var v = ui[key] === undefined ? STRINGS.en[key] : ui[key];
         if (v !== undefined) { n.textContent = v; }
       });
     }
@@ -436,6 +554,7 @@
       var lang = this._lang();
       var r = this.shadowRoot;
       this._box.setAttribute('lang', lang);
+      this._box.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
       this._fill(r);
       var h = this.getAttribute('heading');
       if (h) { r.getElementById('h').textContent = h; }
@@ -602,11 +721,9 @@
       if (this._busy) { return; }
       var text = this._q.value.trim();
       if (!text) { this._q.focus(); return; }
-      if (this._speechReview && !['am', 'en'].includes(this._speechReview.language) && this._q.value.trim() === this._speechReview.original) {
-        this._setStatus(this._t('speechChatUnsupported'));
-        this._q.focus();
-        return;
-      }
+      var lang = this._speechReview && this._q.value.trim() === this._speechReview.original
+        ? this._speechReview.language
+        : this._lang();
       this._cancelRecording();
       this._speechReview = null;
       this._stopSpeak();
@@ -614,8 +731,7 @@
       if (this._human) { return this._sendHuman(text); }
 
       var self = this;
-      var lang = this._lang();
-      this._addMessage('user', text, { lang: guessLang(text) });
+      this._addMessage('user', text, { lang: guessLang(text, lang) });
       this._q.value = '';
       this._setBusy(true);
       this._setStatus(this._t('thinking'));
@@ -711,7 +827,7 @@
 
     async _startAccommodation(text) {
       this._pendingAccommodation = false;
-      this._addMessage('user', text, { lang: guessLang(text) });
+      this._addMessage('user', text, { lang: guessLang(text, this._lang()) });
       this._q.value = '';
       this._setStatus(this._t('connecting'));
       try {
@@ -751,7 +867,7 @@
 
     async _sendHuman(text) {
       var h = this._human;
-      this._addMessage('user', text, { lang: guessLang(text) });
+      this._addMessage('user', text, { lang: guessLang(text, this._lang()) });
       this._q.value = '';
       try {
         await this._call('POST', '/v1/handoff/' + h.id + '/messages', { text: text }, h.token, 15000);
@@ -1068,9 +1184,7 @@
         }
         this._q.value = data.text;
         this._speechReview = { original: data.text, language: data.language || this._speechLang.value };
-        this._setStatus(this._speechReview.language === 'am' || this._speechReview.language === 'en'
-          ? this._t('speechReady')
-          : this._t('speechChatUnsupported'));
+        this._setStatus(this._t('speechReady'));
         this._q.focus();
       } catch (e) {
         var statusKey = e && e.name === 'AbortError' ? 'speechTimeout' :
@@ -1113,7 +1227,7 @@
 
       var voice = this._pickVoice(lang);
       // Never read Amharic text with an English voice: it would be gibberish.
-      if (!voice && lang === 'am') { this._setStatus(this._t('ttsNoVoice')); return; }
+      if (!voice && lang !== 'en') { this._setStatus(this._t('ttsNoVoice')); return; }
 
       var u = new window.SpeechSynthesisUtterance(text.replace(/\s*\[\d+\]/g, ''));
       u.lang = SPEECH_LANG[lang] || 'en-US';

@@ -1,7 +1,7 @@
 {
   "name": "inclusive-assistant",
   "version": "0.1.0",
-  "description": "Accessible multilingual (Amharic/English) learning and career-support platform.",
+  "description": "Accessible multilingual, course-grounded learning and career-support platform.",
   "type": "module",
   "engines": {
     "node": ">=20.12"

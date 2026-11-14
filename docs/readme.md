@@ -1,6 +1,6 @@
 # INCLUSIVE
 
-A bilingual (English and Amharic) course assistant for learners. It answers questions from course content with sources, hands over to a real person on request, and offers a career gateway (job alerts and interview accommodations). It works on the web, on Telegram and by SMS. Vanilla JavaScript and Node, no front-end framework, no database.
+A course-grounded assistant for learners. The web widget can request answers in English, Amharic, Tigrinya, Afaan Oromo, Somali, or Arabic using English and Amharic source content; Telegram and SMS remain English/Amharic. It cites course sources, offers human handoff, and provides job alerts and interview accommodations. Vanilla JavaScript and Node, no front-end framework, no database.
 
 ## Contents
 1. Features
@@ -23,6 +23,7 @@ A bilingual (English and Amharic) course assistant for learners. It answers ques
 |---|---|---|---|
 | Course questions with cited sources | Yes | Yes | Yes |
 | English and Amharic | Yes | Yes | Yes |
+| Web chat reply language selection (English, Amharic, Tigrinya, Afaan Oromo, Somali, Arabic) | Yes | No | No |
 | Voice input and read-aloud | Yes (browser-dependent) | No | No |
 | Talk to a person (with consent) | Yes | Yes | Yes |
 | Screen sharing with a support person | Yes | No | No |
@@ -82,7 +83,7 @@ All settings are in `.env`. Copy `.env.example` and edit it.
 | `SMS_PROVIDER` | No | `webhook` for a real gateway, otherwise the console simulator. |
 | `SMS_WEBHOOK_URL` | With `webhook` | Where outbound SMS are sent. |
 | `SMS_WEBHOOK_KEY` | With `webhook` | Key sent to the gateway. |
-| `AI_PROVIDERS` | No | Provider priority list; defaults to `ollama,offline`. Offline is always added as a fallback. |
+| `AI_PROVIDERS` | No | Provider priority list; defaults to `gemini,ollama,offline`. Offline is always added as a fallback. |
 | `OLLAMA_BASE_URL` | No | Local Ollama OpenAI-compatible endpoint; defaults to `http://127.0.0.1:11434/v1`. |
 | `OLLAMA_MODEL` | No | Local Ollama model; defaults to `aya-expanse:8b`. Install/pull the model before use. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | No | Optional Gemini API key and model. |
@@ -223,7 +224,7 @@ Audio is parsed in memory, not written to disk, and the transcription buffer is 
 
 ### Supported speech versus chat languages
 
-The official Addis docs list Scribe STT for English (`en`), Amharic (`am`), Afaan Oromo (`om`), and Tigrinya (`ti`); non-Amharic Scribe languages use Turbo. Addis Voices 2 documents TTS for Amharic, Afaan Oromo, and Tigrinya. This does **not** make INCLUSIVE course chat multilingual in all these languages. Current chat retrieval and response strings are English/Amharic only. For Oromo/Tigrinya transcripts, the widget displays the recognized text for review but asks the learner to translate/edit it to English or Amharic before chat submission. Arabic and Somali speech are not claimed as supported.
+The web widget can request chat replies in English (`en`), Amharic (`am`), Tigrinya (`ti`), Afaan Oromo (`om`), Somali (`so`), or Arabic (`ar`). The curated course passages remain English and Amharic; replies in other languages are generated from those passages, are cited, and have not been independently reviewed. Addis Scribe speech-to-text remains available for English, Amharic, Afaan Oromo, and Tigrinya only. Addis Voices text-to-speech remains available for Amharic, Afaan Oromo, and Tigrinya only. Somali and Arabic are typed-chat languages; their selection in the speech dropdown does not add provider speech support.
 
 ### Costs, security, and setup
 
@@ -245,7 +246,7 @@ Official references: [Speech-to-Text](https://docs.addisassistant.com/docs/capab
 
 | Attribute | Meaning |
 |---|---|
-| `lang` | `en` or `am` |
+| `lang` | `en`, `am`, `ti`, `om`, `so`, or `ar` |
 | `api-url` | API address (defaults to where the script came from) |
 | `source-base` | Turns relative source links into full links |
 | `support-url` | Fallback link if human help is unavailable |
@@ -258,13 +259,9 @@ Events (prefix `inclusive-assistant:`): `ready`, `answer`, `error`, `escalate` (
 
 Course passage retrieval happens before any AI call. If no relevant passage is found, the assistant does not call a model and instead offers human help. When a passage is found, the configured providers can phrase a grounded answer; the built-in offline provider is the final fallback and can run without external API keys.
 
-Provider implementations and routing live in `api/ai/`. The default configuration uses the local Ollama OpenAI-compatible endpoint followed by the built-in offline provider. Install Ollama, download the model named in `OLLAMA_MODEL` (for the example default, run `ollama pull aya-expanse:8b`), and keep `OLLAMA_BASE_URL` pointed at a trusted local endpoint. Loopback requests are not sent through cloud-only message redaction; non-loopback endpoints are treated as external and receive redaction. If your existing `.env` uses a different provider order, set `AI_PROVIDERS=ollama,offline` to use local Ollama first.
+Provider implementations and routing live in `api/ai/`. Gemini is first in the default provider order and is enabled when `GEMINI_API_KEY` is set in `.env`; Ollama and offline remain fallbacks. For local Ollama first, set `AI_PROVIDERS=ollama,gemini,offline`. Cloud providers are subject to message redaction. The server start script loads `.env` with Node's native `--env-file` option.
 
-Gemini and Groq remain optional cloud providers. Add them to `AI_PROVIDERS` and configure their API keys to enable them. For example, `AI_PROVIDERS=ollama,gemini,offline` tries local Ollama, then Gemini, then offline. To use only local/no-model providers, set `AI_PROVIDERS=ollama,offline`. Additional providers should implement the same provider interface and be registered in `api/server.js`.
-
-### Language rollout
-
-The current implemented languages are English (`en`) and Amharic (`am`). Tigrinya, Afaan Oromo, Somali, and Arabic are planned for later releases. Do not enable a language as supported until its interface strings and course/job content have been translated and reviewed by fluent speakers. The content retriever indexes passages by language, so a supported language needs its own appropriate content; script-based detection alone is not sufficient for all language pairs.
+The web widget's chat selector accepts English (`en`), Amharic (`am`), Tigrinya (`ti`), Afaan Oromo (`om`), Somali (`so`), and Arabic (`ar`). The selected language is passed to the configured answer provider. The retriever currently has reviewed English and Amharic passages only, so answers in other languages are generated from those source passages rather than supported by translated course content. Keep citations visible and seek human help when retrieval cannot ground an answer.
 
 ## 9. Privacy and safety
 

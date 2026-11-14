@@ -24,7 +24,7 @@ export const openapi = {
         type: 'object', required: ['message'],
         properties: {
           message: { type: 'string', maxLength: 1000 },
-          lang: { type: 'string', enum: ['am', 'en'], description: 'Optional. Detected from the message if omitted.' },
+          lang: { type: 'string', enum: ['en', 'am', 'ti', 'om', 'so', 'ar'], description: 'Optional reply language. Detected from the message if omitted.' },
           history: { type: 'array', maxItems: 4, items: { type: 'object', properties: { role: { enum: ['user', 'assistant'] }, content: { type: 'string' } } } }
         }
       },
