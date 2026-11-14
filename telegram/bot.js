@@ -73,7 +73,7 @@ const STRINGS = {
     }
 };
 
-const t = (s, key) => STRINGS[s.lang || 'en'][key];
+const t = (s, key) => (STRINGS[s.lang] || STRINGS.en)[key];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- per-chat state (in memory; resets if the bot restarts) ----

@@ -51,7 +51,7 @@ export function createSmsRuntime({ chat, store, jobStore, sendOutbound }) {
         if (!s) { s = { lang: null, history: [], handoff: null, pendingConsent: false, pendingAccommodation: false, pendingQuestion: '' }; sessions.set(phone, s); }
         return s;
     }
-    const t = (s, key) => STRINGS[s.lang || 'en'][key];
+    const t = (s, key) => (STRINGS[s.lang] || STRINGS.en)[key];
 
     // Long-held wait on the same store Steps 3-4 built, but called directly
     // in-process: no HTTP round trip, no separate process, no rate limit.
