@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support console</title>
+  <style>
+    :root { --bg:#fff; --fg:#1a1a1a; --muted:#4a4a4a; --accent:#0b5cad; --on:#fff; --panel:#eef1f4; --border:#6b7280; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#121212; --fg:#f1f1f1; --muted:#c4c7c5; --accent:#8ab4f8; --on:#0b1b33; --panel:#2a2a2a; --border:#9aa0a6; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:1rem; font-family: system-ui, "Noto Sans Ethiopic", "Nyala", sans-serif; line-height:1.5; background:var(--bg); color:var(--fg); }
+    main { max-width: 60rem; margin: 0 auto; }
+    [hidden] { display: none !important; }
+    label { display:block; font-weight:600; margin-bottom:.25rem; }
+    input, textarea, button { font:inherit; }
+    input, textarea { width:100%; padding:.625rem; color:var(--fg); background:var(--bg); border:2px solid var(--border); border-radius:.5rem; }
+    button { min-height:2.75rem; padding:.5rem 1rem; color:var(--accent); background:var(--bg); border:2px solid var(--accent); border-radius:.5rem; cursor:pointer; }
+    button.primary, button[aria-current="true"] { color:var(--on); background:var(--accent); }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, #log:focus-visible, summary:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+    #queue { margin:0; padding:0; list-style:none; display:grid; gap:.5rem; }
+    #queue button { width:100%; text-align:left; }
+    .grid { display:grid; gap:1.5rem; grid-template-columns: 1fr; }
+    @media (min-width: 48rem) { .grid { grid-template-columns: 18rem 1fr; } }
+    #log { display:flex; flex-direction:column; gap:.5rem; min-height:10rem; max-height:24rem; overflow-y:auto; padding:.5rem; background:var(--panel); border-radius:.5rem; }
+    #log p { margin:0; overflow-wrap:anywhere; }
+    .row { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.5rem; }
+    .muted { color:var(--muted); }
+    #screenVideo { width:100%; max-width:40rem; display:block; background:#000; border:2px solid var(--border); border-radius:.5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Support console</h1>
+
+  <form id="login">
+    <label for="key">Agent key</label>
+    <input id="key" type="password" autocomplete="off" spellcheck="false">
+    <div class="row"><button type="submit" class="primary">Connect</button></div>
+  </form>
+  <p id="msg" role="status" aria-live="polite"></p>
+
+  <div id="app" hidden>
+    <div class="grid">
+      <section aria-labelledby="qh">
+        <h2 id="qh">Open chats</h2>
+        <ul id="queue"></ul>
+        <p id="empty" class="muted">No open chats right now.</p>
+      </section>
+
+      <section aria-labelledby="ch">
+        <h2 id="ch">Conversation</h2>
+        <p id="none" class="muted">Choose a chat from the list.</p>
+        <div id="conv" hidden>
+          <p id="question"></p>
+          <details>
+            <summary>Earlier questions and answers from the learner</summary>
+            <div id="transcript"></div>
+          </details>
+          <div id="screenWrap" hidden>
+            <h3>Learner's screen</h3>
+            <video id="screenVideo" autoplay playsinline muted></video>
+            <p class="muted">This is a one-way view the learner started. They can stop it at any time from their own browser.</p>
+          </div>
+          <div id="log" role="log" aria-live="polite" aria-label="Messages" tabindex="0"></div>
+          <form id="reply">
+            <label for="text">Your reply</label>
+            <textarea id="text" rows="3" maxlength="1000"></textarea>
+            <div class="row">
+              <button type="submit" class="primary" id="sendBtn">Send</button>
+              <button type="button" id="closeBtn">Close chat</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var key = '';
+  var current = null;
+  var gen = 0;
+  var sig = '';
+  var pc = null;
+  var ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function setMsg(t) { $('msg').textContent = t || ''; }
+
+  async function api(method, path, body) {
+    var init = { method: method, headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' } };
+    if (body) { init.body = JSON.stringify(body); }
+    var res = await fetch(path, init);
+    var data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) {
+      var err = new Error(data && data.error ? data.error.message : 'Request failed');
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  function closePeer() {
+    if (pc) { try { pc.close(); } catch (e) { /* already closed */ } }
+    pc = null;
+    $('screenWrap').hidden = true;
+    $('screenVideo').srcObject = null;
+  }
+
+  $('login').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    key = $('key').value.trim();
+    if (!key) { setMsg('Enter the agent key.'); return; }
+    try {
+      await api('GET', '/v1/agent/handoffs');
+      $('login').hidden = true;
+      $('app').hidden = false;
+      setMsg('');
+      queueLoop();
+    } catch (err) {
+      key = '';
+      setMsg(err.message);
+    }
+  });
+
+  async function queueLoop() {
+    while (key) {
+      try { renderQueue((await api('GET', '/v1/agent/handoffs')).handoffs); }
+      catch (err) { if (err.status === 401) { location.reload(); return; } }
+      await sleep(5000);
+    }
+  }
+
+  // Only rebuild the list when it really changed, so keyboard focus is never stolen.
+  function renderQueue(list) {
+    var s = JSON.stringify(list.map(function (h) { return [h.id, h.status]; }));
+    $('empty').hidden = list.length > 0;
+    if (s === sig) { return; }
+    sig = s;
+    var ul = $('queue');
+    ul.textContent = '';
+    list.forEach(function (h) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      var mins = Math.max(0, Math.round((Date.now() - h.createdAt) / 60000));
+            var kindLabel = h.kind === 'accommodation' ? 'Accommodation · ' : '';
+      b.textContent = kindLabel + (h.status === 'waiting' ? 'Waiting' : 'Active') + ' · ' + mins + ' min · ' + (h.lang === 'am' ? 'Amharic' : 'English') + ' · ' + (h.question || '(no question)').slice(0, 80);
+      if (h.id === current) { b.setAttribute('aria-current', 'true'); }
+      b.addEventListener('click', function () { select(h.id); });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+  }
+
+  function note(who, text) {
+    var p = document.createElement('p');
+    var strong = document.createElement('strong');
+    strong.textContent = who + ' ';
+    p.appendChild(strong);
+    p.appendChild(document.createTextNode(text));
+    $('log').appendChild(p);
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+
+  function renderMsg(m) {
+    if (m.from === 'learner') { note('Learner:', m.text); }
+    else if (m.from === 'agent') { note('You:', m.text); }
+    else {
+      var map = { agent_joined: 'You joined the chat.', closed_by_learner: 'The learner ended the chat.', closed_by_agent: 'You closed the chat.' };
+      note('Notice:', map[m.code] || '');
+    }
+  }
+
+  // The learner starts screen sharing by sending a WebRTC offer through the
+  // same chat channel. We answer it and show the stream read-only.
+  async function handleSignal(id, m) {
+    if (m.from !== 'learner') { return; } // ignore our own echoed signals
+    var sig2 = m.data || {};
+    try {
+      if (sig2.type === 'offer') {
+        closePeer();
+        pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        pc.ontrack = function (e) {
+          $('screenVideo').srcObject = e.streams[0];
+          $('screenWrap').hidden = false;
+        };
+        pc.onicecandidate = function (e) {
+          if (e.candidate) { api('POST', '/v1/agent/handoffs/' + id + '/signal', { signal: { type: 'ice', candidate: e.candidate.toJSON() } }).catch(function () { /* best effort */ }); }
+        };
+        await pc.setRemoteDescription({ type: 'offer', sdp: sig2.sdp });
+        var answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await api('POST', '/v1/agent/handoffs/' + id + '/signal', { signal: { type: 'answer', sdp: answer.sdp } });
+      } else if (sig2.type === 'ice' && sig2.candidate && pc) {
+        await pc.addIceCandidate(sig2.candidate);
+      }
+    } catch (e) { /* a late or malformed signal is safe to ignore */ }
+  }
+
+  function lock(closed) {
+    $('text').disabled = closed;
+    $('sendBtn').disabled = closed;
+    $('closeBtn').disabled = closed;
+    if (closed) { closePeer(); }
+  }
+
+  function select(id) {
+    gen += 1;
+    current = id;
+    sig = '';
+    closePeer();
+    $('none').hidden = true;
+    $('conv').hidden = false;
+    $('log').textContent = '';
+    $('transcript').textContent = '';
+    $('question').textContent = '';
+    Array.prototype.forEach.call($('queue').querySelectorAll('button'), function (b) { b.removeAttribute('aria-current'); });
+    poll(gen, id);
+    $('text').focus();
+  }
+
+  async function poll(g, id) {
+    var after = 0;
+    var first = true;
+    while (g === gen && key) {
+      var d = null;
+      try {
+        d = await api('GET', '/v1/agent/handoffs/' + id + '?after=' + after + '&wait=' + (first ? 0 : 20));
+      } catch (err) {
+        if (g !== gen) { return; }
+        if (err.status === 404) { note('Notice:', 'This chat is no longer available.'); lock(true); return; }
+        await sleep(3000);
+        continue;
+      }
+      if (g !== gen) { return; }
+      if (first) {
+        first = false;
+        $('question').textContent = (d.kind === 'accommodation' ? '[Interview accommodation request] ' : '') + 'The learner asked: ' + (d.question || '(no question)');
+        d.transcript.forEach(function (t) {
+          var p = document.createElement('p');
+          p.textContent = (t.role === 'user' ? 'Learner: ' : 'Assistant: ') + t.content;
+          $('transcript').appendChild(p);
+        });
+        lock(d.status === 'closed');
+      }
+      d.messages.forEach(function (m) {
+        after = Math.max(after, m.id);
+        if (m.code === 'webrtc') { handleSignal(id, m); return; }
+        renderMsg(m);
+      });
+      if (d.status === 'closed') { lock(true); return; }
+    }
+  }
+
+  $('reply').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var text = $('text').value.trim();
+    if (!text || !current) { return; }
+    try {
+      await api('POST', '/v1/agent/handoffs/' + current + '/messages', { text: text });
+      $('text').value = '';
+      setMsg('');
+    } catch (err) { setMsg(err.message); }
+    $('text').focus();
+  });
+
+  $('closeBtn').addEventListener('click', async function () {
+    if (!current) { return; }
+    try { await api('POST', '/v1/agent/handoffs/' + current + '/close', {}); }
+    catch (err) { setMsg(err.message); }
+  });
+})();
+</script>
+</body>
+</html>

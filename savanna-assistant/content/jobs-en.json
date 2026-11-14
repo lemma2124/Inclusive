@@ -1,0 +1,8 @@
+[
+  { "id": "job-cs-rep", "lang": "en", "topic": "jobs", "title": "Customer Support Representative (remote, entry-level)", "url": "/jobs/customer-support-rep",
+    "text": "A partner company is hiring an entry-level customer support representative to answer chats and calls in English and Amharic. No prior experience is required; training is provided. The role can be done from home with a smartphone or computer and a stable internet connection. Ask the assistant to connect you with a person to apply." },
+  { "id": "job-data-entry", "lang": "en", "topic": "jobs", "title": "Data Entry Clerk (part-time)", "url": "/jobs/data-entry-clerk",
+    "text": "A local business is looking for a part-time data entry clerk to type information from paper forms into a computer system. Basic reading and typing skills are needed. Flexible hours are available, including evenings." },
+  { "id": "job-accommodations", "lang": "en", "topic": "jobs", "title": "Requesting interview accommodations", "url": "/jobs/accommodations",
+    "text": "If you need an accommodation for a job interview, such as extra time, a sign language interpreter, materials in a different format, or a quiet room, you can request this without stating a medical condition. Ask the assistant for interview accommodations." }
+]

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inclusive Assistant demo</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; padding: 1rem; font-family: system-ui, "Noto Sans Ethiopic", "Nyala", sans-serif; line-height: 1.5; background: #ffffff; color: #1a1a1a; }
+    main { max-width: 42rem; margin: 0 auto; }
+    pre { overflow-x: auto; padding: .75rem; background: #eef1f4; border-radius: .5rem; }
+    a { color: #0b5cad; text-decoration: underline; }
+    a:visited { color: #6b2fa0; }
+    a:focus-visible, pre:focus-visible { outline: 3px solid #0b5cad; outline-offset: 2px; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #121212; color: #f1f1f1; }
+      pre { background: #2a2a2a; }
+      a { color: #8ab4f8; }
+      a:visited { color: #c58af9; }
+      a:focus-visible, pre:focus-visible { outline-color: #8ab4f8; }
+    }
+  </style>
+  <script src="/widget/inclusive-assistant.v1.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Inclusive Assistant demo</h1>
+    <p>Ask a question about the sample course. Try English or Amharic, the voice button, and "Read aloud".</p>
+
+    <inclusive-assistant lang="en"></inclusive-assistant>
+
+    <p>Human help: ask something off-topic such as "who won the world cup", press <strong>Talk to a person</strong>, then answer as the support person at <a href="/agent">/agent</a> in another tab.</p>
+    <p>Interview accommodations: press <strong>Request interview accommodations</strong>, describe what you need (no medical details required), and answer from <a href="/agent">/agent</a>. The request shows there tagged "Accommodation".</p>
+
+    <h2>Install on any page</h2>
+    <p>Two lines. No build step.</p>
+    <pre tabindex="0"><code>&lt;script src="https://YOUR-HOST/widget/inclusive-assistant.v1.js" defer&gt;&lt;/script&gt;
+&lt;inclusive-assistant lang="en"&gt;&lt;/inclusive-assistant&gt;</code></pre>
+  </main>
+  <script>
+    // Settings in, events out: the host page can listen to the widget.
+    document.addEventListener('inclusive-assistant:answer', function (e) { console.log('answer', e.detail); });
+    document.addEventListener('inclusive-assistant:escalate', function (e) { console.log('escalate', e.detail); });
+    document.addEventListener('inclusive-assistant:error', function (e) { console.log('error', e.detail); });
+    document.addEventListener('savanna-assistant:accommodation', function (e) { console.log('accommodation', e.detail); });
+  </script>
+</body>
+</html>

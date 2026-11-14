@@ -1,0 +1,14 @@
+[
+  { "id": "en-courses", "lang": "en", "topic": "navigation", "title": "Finding your courses", "url": "/help/courses",
+    "text": "Open the courses list at the top of the page and choose the course you want. Your courses are grouped by programme, and any other courses are listed under Other courses." },
+  { "id": "en-weeks", "lang": "en", "topic": "navigation", "title": "Weekly lessons", "url": "/help/weeks",
+    "text": "Every week of your course is shown in the week strip. Select a week to see its lessons and tasks. Use the arrows on the strip to move to earlier or later weeks." },
+  { "id": "en-score", "lang": "en", "topic": "progress", "title": "Checking your score", "url": "/help/score",
+    "text": "Your overall score is shown on the home page. To see how a week's score was worked out, choose Score details for that week." },
+  { "id": "en-complete", "lang": "en", "topic": "progress", "title": "Marking a lesson complete", "url": "/help/complete",
+    "text": "After you have read a lesson, choose Mark as complete at the bottom of the page. The lesson then shows as read in the navigation panel on the side." },
+  { "id": "en-progress", "lang": "en", "topic": "progress", "title": "Course progress and graduation", "url": "/help/progress",
+    "text": "In a self-paced course you must complete a set percentage of the work to graduate. Your progress is shown against that percentage, so you can see how much is left." },
+  { "id": "en-help", "lang": "en", "topic": "support", "title": "Getting help from a person", "url": "/help/support",
+    "text": "If you cannot find an answer here, choose Talk to a person. A member of the support team will help you, and you decide whether to share your screen." }
+]
