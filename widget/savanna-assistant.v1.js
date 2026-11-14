@@ -19,6 +19,8 @@
   var STRINGS = {
     en: {
       heading: 'INCLUSIVE course assistant',
+      openChat: 'Open chat',
+      closeChat: 'Close chat',
       welcome: 'Welcome to INCLUSIVE! Ask me anything about your course. Chat replies are available in English, Amharic, Tigrinya, Afaan Oromo, Somali, and Arabic.',
       conversation: 'Conversation',
       langGroup: 'Language',
@@ -93,6 +95,8 @@
     },
     am: {
       heading: 'INCLUSIVE የኮርስ ረዳት',
+      openChat: 'ውይይቱን ክፈት',
+      closeChat: 'ውይይቱን ዝጋ',
       welcome: 'ወደ INCLUSIVE እንኳን በደህና በመጡ። ስለ ኮርሱ ይጠይቁ። በእንግሊዝኛ፣ በአማርኛ፣ በትግርኛ፣ በAfaan Oromo፣ በSoomaali ወይም በالعربية መልስ ማግኘት ይችላሉ።',
       conversation: 'ውይይት',
       langGroup: 'ቋንቋ',
@@ -167,6 +171,8 @@
     },
     ti: {
       heading: 'INCLUSIVE ሓጋዚ ትምህርቲ',
+      openChat: 'ዕላል ክፈት',
+      closeChat: 'ዕላል ዕጸው',
       welcome: 'እንቋዕ ናብ INCLUSIVE ብደሓን መጻእኩም። ብዛዕባ ትምህርትኹም ሕተቱ። ብእንግሊዝኛ፣ ብኣምሓርኛ፣ ብትግርኛ፣ Afaan Oromo፣ Soomaali ወይ ዓረብኛ መልሲ ክትረኽቡ ትኽእሉ።',
       conversation: 'ዕላል',
       langGroup: 'ቋንቋ',
@@ -194,6 +200,8 @@
     },
     om: {
       heading: 'Gargaaraa Koorsii INCLUSIVE',
+      openChat: 'Marii bani',
+      closeChat: 'Marii cufi',
       welcome: 'Baga gara INCLUSIVE dhuftan! Waa’ee koorsii keessanii gaafadhaa. Afaan Ingiliffaa, Amaariffaa, Tigiree, Afaan Oromo, Soomaali fi Arabiffaan deebii argachuu dandeessu.',
       conversation: 'Haasa’a',
       langGroup: 'Afaan',
@@ -221,6 +229,8 @@
     },
     so: {
       heading: 'Kaaliyaha koorsada INCLUSIVE',
+      openChat: 'Fur wada sheekaysiga',
+      closeChat: 'Xir wada sheekaysiga',
       welcome: 'Ku soo dhowow INCLUSIVE! Weydii su’aal ku saabsan koorsadaada. Jawaab waxaad ku heli kartaa Ingiriisi, Amxaari, Tigrinya, Afaan Oromo, Soomaali ama Carabi.',
       conversation: 'Wadahadal',
       langGroup: 'Luqad',
@@ -248,6 +258,8 @@
     },
     ar: {
       heading: 'مساعد التعلّم من INCLUSIVE',
+      openChat: 'افتح المحادثة',
+      closeChat: 'أغلق المحادثة',
       welcome: 'مرحبًا بك في INCLUSIVE! اطرح سؤالًا عن الدورة. يمكن أن تكون الإجابة بالإنجليزية أو الأمهرية أو التغرينية أو الأورومية أو الصومالية أو العربية.',
       conversation: 'المحادثة',
       langGroup: 'اللغة',
@@ -277,15 +289,22 @@
 
   var TEMPLATE = [
     '<style>',
-    ':host{display:block;max-width:100%;--sa-bg:#ffffff;--sa-fg:#1a1a1a;--sa-muted:#4a4a4a;--sa-accent:#0b5cad;--sa-on-accent:#ffffff;--sa-bot:#eef1f4;--sa-border:#6b7280;--sa-error:#b3261e;',
+    ':host{position:fixed;right:1rem;bottom:1rem;z-index:2147483000;display:block;width:27rem;max-width:calc(100vw - 2rem);--sa-bg:#ffffff;--sa-fg:#1a1a1a;--sa-muted:#4a4a4a;--sa-accent:#0b5cad;--sa-on-accent:#ffffff;--sa-bot:#eef1f4;--sa-border:#6b7280;--sa-error:#b3261e;',
     'font-family:system-ui,-apple-system,"Segoe UI","Noto Sans Ethiopic","Nyala","Abyssinica SIL",sans-serif;font-size:1rem;line-height:1.5;color:var(--sa-fg)}',
+    ':host([mode="inline"]){position:static;width:auto;max-width:100%;z-index:auto}',
     ':host([theme="dark"]){--sa-bg:#121212;--sa-fg:#f1f1f1;--sa-muted:#c4c7c5;--sa-accent:#8ab4f8;--sa-on-accent:#0b1b33;--sa-bot:#2a2a2a;--sa-border:#9aa0a6;--sa-error:#ffb4ab}',
     '@media (prefers-color-scheme:dark){:host(:not([theme="light"])){--sa-bg:#121212;--sa-fg:#f1f1f1;--sa-muted:#c4c7c5;--sa-accent:#8ab4f8;--sa-on-accent:#0b1b33;--sa-bot:#2a2a2a;--sa-border:#9aa0a6;--sa-error:#ffb4ab}}',
     '*,*::before,*::after{box-sizing:border-box}',
     '[hidden]{display:none !important}',
-    '.box{display:flex;flex-direction:column;gap:.75rem;width:100%;padding:1rem;background:var(--sa-bg);color:var(--sa-fg);border:2px solid var(--sa-border);border-radius:.75rem}',
-    '.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}',
+    '.shell{display:flex;flex-direction:column-reverse;align-items:flex-end;gap:.75rem}',
+    '.box{display:flex;flex-direction:column;gap:.75rem;width:100%;height:min(42rem,calc(100vh - 6rem));max-height:calc(100vh - 6rem);padding:1rem;overflow:auto;background:var(--sa-bg);color:var(--sa-fg);border:2px solid var(--sa-border);border-radius:.75rem;box-shadow:0 8px 32px rgba(0,0,0,.24)}',
+    '.shell.open .box{position:absolute;right:0;bottom:4.5rem}',
+    '.inline .box{height:auto;max-height:none;box-shadow:none}',
+    '.top{display:flex;flex:0 0 auto;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}',
     '.title{margin:0;font-size:1.25rem}',
+    '.close{flex:0 0 auto;padding:.25rem .75rem}',
+    '.launcher{display:flex;width:3.75rem;height:3.75rem;min-width:3.75rem;align-items:center;justify-content:center;padding:.75rem;border-radius:50%;box-shadow:0 4px 16px rgba(0,0,0,.25);font-weight:700}',
+    '.launcher-icon{display:block;width:1.5rem;height:1.5rem}',
     '.langs{display:flex;flex-wrap:wrap;gap:.25rem}',
     '.mode{margin:0;padding:.375rem .75rem;font-weight:700;color:var(--sa-on-accent);background:var(--sa-accent);border-radius:.5rem}',
     'button{font:inherit;min-width:2.75rem;min-height:2.75rem;padding:.5rem 1rem;color:var(--sa-accent);background:var(--sa-bg);border:2px solid var(--sa-accent);border-radius:.5rem;cursor:pointer}',
@@ -293,7 +312,8 @@
     'button[aria-pressed="true"]{font-weight:700}',
     'button[aria-disabled="true"]{opacity:.6;cursor:not-allowed}',
     'button:focus-visible,textarea:focus-visible,.log:focus-visible,a:focus-visible{outline:3px solid var(--sa-accent);outline-offset:2px}',
-    '.log{display:flex;flex-direction:column;gap:.75rem;min-height:8rem;max-height:min(60vh,28rem);padding:.25rem;overflow-y:auto}',
+    '.log{display:flex;flex:1 1 auto;flex-direction:column;gap:.75rem;min-height:4rem;padding:.25rem;overflow-y:auto}',
+    '.inline .log{flex:initial;min-height:8rem;max-height:min(60vh,28rem)}',
     '.msg{max-width:92%;padding:.625rem .875rem;border-radius:.75rem;overflow-wrap:anywhere}',
     '.msg p{margin:0}',
     '.user{align-self:flex-end;color:var(--sa-on-accent);background:var(--sa-accent)}',
@@ -306,7 +326,7 @@
     '.links a{color:var(--sa-accent);text-decoration:underline}',
     '.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}',
     '.status{min-height:1.5rem;margin:0;color:var(--sa-muted)}',
-    '.form{display:flex;flex-direction:column;gap:.5rem}',
+    '.form{display:flex;flex:0 0 auto;flex-direction:column;gap:.5rem}',
     'label{font-weight:600}',
     'textarea{width:100%;min-height:3.5rem;padding:.625rem;font:inherit;color:var(--sa-fg);background:var(--sa-bg);border:2px solid var(--sa-border);border-radius:.5rem;resize:vertical}',
     '.speech-tools{display:flex;flex-wrap:wrap;align-items:end;gap:.5rem}',
@@ -316,11 +336,15 @@
     '.hint{margin:0;font-size:.875rem;color:var(--sa-muted)}',
     '.row{display:flex;flex-wrap:wrap;gap:.5rem}',
     '.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
+    '@media(max-width:480px){:host:not([mode="inline"]){right:.5rem;bottom:.5rem;max-width:calc(100vw - 1rem)}:host:not([mode="inline"]) .box{height:calc(100vh - 5rem);max-height:calc(100vh - 5rem);padding:.75rem}}',
     '@media (forced-colors:active){button,textarea,.msg,.mode{border:1px solid CanvasText}}',
     '</style>',
-    '<section class="box" id="box" aria-labelledby="h">',
+    '<div class="shell" id="shell">',
+    '<button type="button" class="launcher" id="launcher" aria-controls="box" aria-expanded="false"><svg class="launcher-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v11H9l-5 3v-14z"></path></svg></button>',
+    '<section class="box" id="box" aria-labelledby="h" hidden>',
     '<header class="top">',
     '<h2 class="title" id="h" data-k="heading"></h2>',
+    '<button type="button" class="close" id="close" data-k="closeChat"></button>',
     '<div class="langs" id="langs" role="group">',
     '<button type="button" data-l="en" lang="en" aria-pressed="false">English</button>',
     '<button type="button" data-l="am" lang="am" aria-pressed="false">አማርኛ</button>',
@@ -353,7 +377,8 @@
     '<button type="button" id="accBtn" data-k="accommodation"></button>',
     '</div>',
     '</form>',
-    '</section>'
+    '</section>',
+    '</div>'
   ].join('');
 
   function el(tag, cls, text) {
@@ -371,12 +396,13 @@
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   class InclusiveAssistant extends HTMLElement {
-    static get observedAttributes() { return ['lang', 'heading']; }
+    static get observedAttributes() { return ['lang', 'heading', 'mode']; }
 
     constructor() {
       super();
       this._history = [];
       this._courseContext = null;
+      this._open = false;
       this._busy = false;
       this._built = false;
       this._rec = null;
@@ -403,6 +429,7 @@
     connectedCallback() {
       if (!this._built) { this._build(); this._built = true; }
       this._applyStrings();
+      this._applyMode();
       this._emit('ready', { version: VERSION });
     }
 
@@ -416,8 +443,10 @@
       this._pendingAccommodation = false;
     }
 
-    attributeChangedCallback() {
-      if (this._built) { this._applyStrings(); }
+    attributeChangedCallback(name) {
+      if (!this._built) { return; }
+      this._applyStrings();
+      if (name === 'mode') { this._applyMode(); }
     }
 
     /* Public: ask a question from code, e.g. el.ask('How do I check my score?') */
@@ -501,6 +530,9 @@
       var self = this;
       var r = this.shadowRoot;
       r.innerHTML = TEMPLATE;
+      this._shell = r.getElementById('shell');
+      this._launcher = r.getElementById('launcher');
+      this._closeBtn = r.getElementById('close');
       this._box = r.getElementById('box');
       this._log = r.getElementById('log');
       this._status = r.getElementById('status');
@@ -514,6 +546,8 @@
       this._accBtn = r.getElementById('accBtn');
       this._modeEl = r.getElementById('mode');
 
+      this._launcher.addEventListener('click', function () { self._setOpen(true, true); });
+      this._closeBtn.addEventListener('click', function () { self._setOpen(false, true); });
       r.getElementById('form').addEventListener('submit', function (e) {
         e.preventDefault();
         self._send();
@@ -533,7 +567,14 @@
       this._shareBtn.addEventListener('click', function () { self._toggleShare(); });
       this._accBtn.addEventListener('click', function () { self._promptAccommodation(); });
       r.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { self._stopMic(); self._stopSpeak(); }
+        if (e.key === 'Escape') {
+          if (self._open && self.getAttribute('mode') !== 'inline') {
+            e.preventDefault();
+            self._setOpen(false, true);
+          }
+          self._stopMic();
+          self._stopSpeak();
+        }
       });
       Array.prototype.forEach.call(r.querySelectorAll('[data-l]'), function (b) {
         b.addEventListener('click', function () {
@@ -576,6 +617,8 @@
       this._box.setAttribute('lang', lang);
       this._box.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
       this._fill(r);
+      this._launcher.setAttribute('aria-label', this._t('openChat'));
+      this._closeBtn.setAttribute('aria-label', this._t('closeChat'));
       var h = this.getAttribute('heading');
       if (h) { r.getElementById('h').textContent = h; }
       this._log.setAttribute('aria-label', STRINGS[lang].conversation);
@@ -583,6 +626,27 @@
       Array.prototype.forEach.call(r.querySelectorAll('[data-l]'), function (b) {
         b.setAttribute('aria-pressed', b.getAttribute('data-l') === lang ? 'true' : 'false');
       });
+    }
+
+    _applyMode() {
+      var inline = this.getAttribute('mode') === 'inline';
+      if (inline) { this._open = false; }
+      this._shell.className = inline ? 'shell inline' : this._open ? 'shell open' : 'shell';
+      this._box.hidden = !inline && !this._open;
+      this._launcher.hidden = inline || this._open;
+      this._closeBtn.hidden = inline;
+      this._launcher.setAttribute('aria-expanded', this._open ? 'true' : 'false');
+    }
+
+    _setOpen(open, returnFocus) {
+      if (this.getAttribute('mode') === 'inline') { return; }
+      this._open = !!open;
+      this._shell.className = this._open ? 'shell open' : 'shell';
+      this._box.hidden = !this._open;
+      this._launcher.hidden = this._open;
+      this._launcher.setAttribute('aria-expanded', this._open ? 'true' : 'false');
+      if (this._open) { this._q.focus(); }
+      else if (returnFocus) { this._launcher.focus(); }
     }
 
     _setStatus(text) {

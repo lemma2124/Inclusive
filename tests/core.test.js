@@ -504,6 +504,29 @@ test('widget parses, stays small, and is served safely', async () => {
   assistant.setCourseContext(null);
   assert.equal(assistant._courseContext, null);
   assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(1001) }), /1000 characters/);
+  const panel = Object.create(elements['inclusive-assistant'].prototype);
+  panel.mode = 'inline';
+  panel.getAttribute = (name) => name === 'mode' ? panel.mode : null;
+  panel._shell = { className: '' };
+  panel._box = { hidden: true };
+  panel._launcher = { hidden: false, setAttribute(name, value) { this[name] = value; }, focus() { this.focused = true; } };
+  panel._closeBtn = { hidden: false };
+  panel._q = { focus() { this.focused = true; } };
+  panel._applyMode();
+  assert.equal(panel._shell.className, 'shell inline');
+  assert.equal(panel._box.hidden, false);
+  assert.equal(panel._launcher.hidden, true);
+  assert.equal(panel._closeBtn.hidden, true);
+  panel.mode = null;
+  panel._applyMode();
+  assert.equal(panel._box.hidden, true);
+  panel._setOpen(true, true);
+  assert.equal(panel._box.hidden, false);
+  assert.equal(panel._launcher['aria-expanded'], 'true');
+  assert.equal(panel._q.focused, true);
+  panel._setOpen(false, true);
+  assert.equal(panel._box.hidden, true);
+  assert.equal(panel._launcher.focused, true);
   assert.ok(src.length < 70 * 1024, 'widget should stay small for 3G');
   assert.match(src, /MediaRecorder/);
   assert.match(src, /data-k="speechLanguage"/);
@@ -515,6 +538,10 @@ test('widget parses, stays small, and is served safely', async () => {
     assert.match(src, new RegExp(`value="${lang}"`));
   }
   assert.match(src, /attachShadow\(\{ mode: 'open' \}\)/);
+  assert.match(src, /:host\{position:fixed/);
+  assert.match(src, /aria-expanded="false"/);
+  assert.match(src, /data-k="closeChat"/);
+  assert.match(src, /Escape/);
   assert.match(src, /request\.context = this\._courseContext/);
   assert.match(src, /setCourseContext\(context\)/);
   await withServer(baseCfg, async (base) => {

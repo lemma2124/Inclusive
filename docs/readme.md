@@ -250,8 +250,11 @@ Official references: [Speech-to-Text](https://docs.addisassistant.com/docs/capab
 | `api-url` | API address (defaults to where the script came from) |
 | `source-base` | Turns relative source links into full links |
 | `support-url` | Fallback link if human help is unavailable |
+| `mode="inline"` | Optional: render the full assistant in the page instead of as a floating launcher |
 | `heading` | Custom title |
 | `theme` | `light` or `dark` (otherwise follows the device) |
+
+By default, the assistant appears as a fixed floating button at the bottom-right of the page. Activate it to open the chat; use Close or Escape to collapse it. The panel and controls are isolated in the component's Shadow DOM. Add `mode="inline"` to render the full assistant inline, as on the demo page.
 
 Events (prefix `inclusive-assistant:`): `ready`, `answer`, `error`, `escalate` (cancelable), `handoff`, `accommodation`. The former `savanna-assistant` custom element, asset URL, and event prefix remain supported as backward-compatible aliases.
 
