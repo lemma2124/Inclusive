@@ -1,10 +1,10 @@
-/*! inclusive-assistant v1.3.0 | MIT | vanilla JS, no dependencies */
+/*! inclusive-assistant v1.3.1 | MIT | vanilla JS, no dependencies */
 (function () {
   'use strict';
   if (typeof window === 'undefined' || !window.customElements) { return; }
   if (window.customElements.get('inclusive-assistant')) { return; }
 
-  var VERSION = '1.3.0';
+  var VERSION = '1.3.1';
 
   var SCRIPT_ORIGIN = '';
   try {
@@ -71,7 +71,9 @@
       shareStoppedDevice: 'Screen sharing stopped.',
       accommodation: 'Request interview accommodations',
       accommodationPrompt: 'Please describe what you need for an interview (for example: more time, a sign language interpreter, or a quiet room). You do not need to state a medical condition. Then press Send.',
-      accommodationWaiting: 'Your request was sent to a person. They may message you here.'
+      accommodationWaiting: 'Your request was sent to a person. They may message you here.',
+      accommodationCancel: 'Cancel',
+      accommodationCancelled: 'OK, no request was sent. You can keep asking the assistant.'
     },
     am: {
       heading: 'አካታች ረዳት',
@@ -127,7 +129,9 @@
       shareStoppedDevice: 'ማያ ገጽ ማጋራት ቆሟል።',
       accommodation: 'የቃለ መጠይቅ ድጋፍ ይጠይቁ',
       accommodationPrompt: 'ለቃለ መጠይቅ ምን እንደሚያስፈልግዎ ይግለጹ (ለምሳሌ፦ ተጨማሪ ጊዜ፣ የምልክት ቋንቋ አስተርጓሚ፣ ወይም ጸጥ ያለ ክፍል)። የህክምና ሁኔታ መግለጽ አያስፈልግም። ከዚያ ላክ ይጫኑ።',
-      accommodationWaiting: 'ጥያቄዎ ለሰው ተልኳል። እዚህ ሊጽፉልዎት ይችላሉ።'
+      accommodationWaiting: 'ጥያቄዎ ለሰው ተልኳል። እዚህ ሊጽፉልዎት ይችላሉ።',
+      accommodationCancel: 'ሰርዝ',
+      accommodationCancelled: 'እሺ፣ ምንም ጥያቄ አልተላከም። ረዳቱን መጠየቅ መቀጠል ይችላሉ።'
     }
   };
 
@@ -189,7 +193,7 @@
     '<button type="button" id="mic" data-k="mic" aria-pressed="false"></button>',
     '<button type="submit" id="send" class="primary" data-k="send"></button>',
     '<button type="button" id="endHuman" data-k="humanEnd" hidden></button>',
-    '<button type="button" id="shareBtn" data-k="shareScreen" hidden></button>',
+    '<button type="button" id="shareBtn" data-k="shareScreen" aria-pressed="false" hidden></button>',
     '<button type="button" id="accBtn" data-k="accommodation"></button>',
     '</div>',
     '</form>',
@@ -222,6 +226,7 @@
       this._micError = false;
       this._human = null;
       this._pendingAccommodation = false;
+      this._accPrompt = null;
       this._stream = null;
       this._pc = null;
       this.attachShadow({ mode: 'open' });
@@ -347,10 +352,13 @@
     }
 
     _fill(root) {
-      var ui = STRINGS[this._lang()];
+      var l = this._lang();
+      var ui = STRINGS[l];
       Array.prototype.forEach.call(root.querySelectorAll('[data-k]'), function (n) {
         var v = ui[n.getAttribute('data-k')];
-        if (v !== undefined) { n.textContent = v; }
+        // Interface text is always in the interface language, so mark it as such
+        // (keeps lang correct after the learner switches language).
+        if (v !== undefined) { n.textContent = v; n.setAttribute('lang', l); }
       });
     }
 
@@ -537,12 +545,10 @@
         read: false,
         actions: [
           { key: 'humanYes', primary: true, onClick: function () { self._startHuman(question); } },
-          {
-            key: 'humanNo', onClick: function () {
-              self._addMessage('bot', '', { key: 'humanCancelled', read: false });
-              self._q.focus();
-            }
-          }
+          { key: 'humanNo', onClick: function () {
+            self._addMessage('bot', '', { key: 'humanCancelled', read: false });
+            self._q.focus();
+          } }
         ]
       });
       var first = a.querySelector('button');
@@ -577,13 +583,31 @@
     /* ---------- interview accommodations (reuses the human-help channel) ---------- */
     _promptAccommodation() {
       if (this._human) { this._setStatus(this._t('humanAlready')); this._q.focus(); return; }
+      var self = this;
       this._pendingAccommodation = true;
-      this._addMessage('bot', '', { key: 'accommodationPrompt', read: false });
+      // A learner who pressed the button by mistake must be able to back out, so
+      // their next ordinary question is not sent as an accommodation request.
+      this._accPrompt = this._addMessage('bot', '', {
+        key: 'accommodationPrompt',
+        read: false,
+        actions: [{ key: 'accommodationCancel', onClick: function () {
+          if (!self._pendingAccommodation) { return; }
+          self._pendingAccommodation = false;
+          self._accPrompt = null;
+          self._addMessage('bot', '', { key: 'accommodationCancelled', read: false });
+          self._q.focus();
+        } }]
+      });
       this._q.focus();
     }
 
     async _startAccommodation(text) {
       this._pendingAccommodation = false;
+      if (this._accPrompt) {
+        var stale = this._accPrompt.querySelector('.actions');
+        if (stale) { stale.remove(); }
+        this._accPrompt = null;
+      }
       this._addMessage('user', text, { lang: guessLang(text) });
       this._q.value = '';
       this._setStatus(this._t('connecting'));
@@ -726,6 +750,7 @@
 
         this._shareBtn.setAttribute('data-k', 'stopShare');
         this._fill(this.shadowRoot);
+        this._shareBtn.setAttribute('aria-pressed', 'true');
         this._setStatus(this._t('sharing'));
       } catch (e) {
         this._stopShare();
@@ -744,7 +769,7 @@
       }
       this._shareBtn.setAttribute('data-k', 'shareScreen');
       this._fill(this.shadowRoot);
-
+      this._shareBtn.setAttribute('aria-pressed', 'false');
       if (key) { this._setStatus(this._t(key)); }
     }
 
