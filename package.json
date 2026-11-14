@@ -7,7 +7,7 @@
     "node": ">=20.12"
   },
   "scripts": {
-    "start": "node --env-file=.env api/server.js",
+    "start": "node api/server.js",
     "bot": "node telegram/bot.js",
     "test": "node --test tests/core.test.js",
     "a11y": "node tests/a11y.mjs"

@@ -297,6 +297,9 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try { process.loadEnvFile('.env'); } catch { /* .env is optional */ }
   const cfg = loadConfig();
+  if (cfg.providers.includes('gemini') && !cfg.geminiKey) {
+    console.warn('GEMINI_API_KEY is not set; Gemini will be skipped. Configure it in the deployment environment to enable Gemini.');
+  }
   if (cfg.agentKey && cfg.agentKey.length < 16) console.warn('AGENT_KEY is short. Use at least 16 random characters.');
   const { server } = createApp(cfg);
   server.listen(cfg.port, () => {
