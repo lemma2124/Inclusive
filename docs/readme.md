@@ -128,12 +128,56 @@ Support person --> /agent console --> /v1/agent/* (Bearer AGENT_KEY)
 
 ## 5. Using each channel
 
-| | Telegram | SMS |
+| Function | Telegram | SMS |
 |---|---|---|
-| Language | `/en`, `/am` | `EN`, `AM` |
-| Human help | `/human`, `/end` | `HUMAN`, `END` |
-| Job alerts | `/jobs`, `/unsubscribe` | `JOBS`, `UNSUBSCRIBE` or `STOP` |
-| Interview accommodation | `/accommodation`, `/cancel` | `ACCOMMODATION`, `CANCEL` |
+| Help/menu | `/start`, `/help` | `HELP` |
+| Learning | `/learn <question>` or send a question | `LEARN`, then send a question |
+| Language | `/language`, `/language English`, `/en`, `/am`, `/om`, `/ti` | `LANGUAGE`, then `ENGLISH`, `AMHARIC`, `AFAAN OROMOO`, or `TIGRINYA`; short forms `EN` and `AM` also work |
+| Human support | `/support` or `/human`, confirm with button; `/end` ends an active handoff | `SUPPORT` or `HUMAN`, reply `YES` to consent; `END` ends an active handoff |
+| Job information/alerts | `/jobs` uses current local content and subscribes the chat to alerts; `/unsubscribe` opts out | `JOBS` asks the existing content assistant; `ALERTS` or `SUBSCRIBE` opts into alerts; `UNSUBSCRIBE` opts out |
+| Interview accommodation | `/accommodation`, then describe the request; `/cancel` | `ACCOMMODATION`, then describe the request; `CANCEL` |
+| Stop/resume | `/unsubscribe` stops job alerts | `STOP` opts out of optional SMS messages and alerts; `START` resumes |
+
+| SMS command | English | Amharic | Afaan Oromo | Tigrinya |
+|---|---|---|---|---|
+| Help | `HELP` | `HELP` | `HELP` | `HELP` |
+| Learn | `LEARN` | `LEARN` | `LEARN` | `LEARN` |
+| Jobs | `JOBS` | `JOBS` | `JOBS` | `JOBS` |
+| Support | `SUPPORT` | `SUPPORT` | `SUPPORT` | `SUPPORT` |
+| Language menu | `LANGUAGE` | `LANGUAGE` | `LANGUAGE` | `LANGUAGE` |
+| Select language | `ENGLISH` | `AMHARIC` | `AFAAN OROMOO` | `TIGRINYA` |
+| Stop/resume | `STOP` / `START` | `STOP` / `START` | `STOP` / `START` | `STOP` / `START` |
+
+Language preferences and conversation state are currently held in process memory and reset on restart. The application does not currently have persistent per-user preferences. Language detection is intentionally conservative; use the explicit language command when it asks you to choose.
+
+**Important language limit:** channel menus and basic command/status replies are available in English, Amharic, Afaan Oromo, and Tigrinya. The shared course-chat API and reviewed course knowledge base support English and Amharic only. For Oromo or Tigrinya course questions the channels explain the limitation and ask the learner to choose English/Amharic; they do not claim multilingual AI answers in those languages. Human agent replies are delivered as written by the agent and are not automatically translated.
+
+### SMS gateway configuration
+
+The server accepts inbound JSON at `POST /v1/sms/inbound` with `from`, `text`, and an optional provider `messageId`. Send `Authorization: Bearer <SMS_INBOUND_KEY>`. Message IDs are deduplicated in memory for ten minutes when supplied. Requests are limited to 60 inbound requests per IP per minute at the server route and 20 handled messages per phone per minute in the SMS runtime. All session, preference, opt-out, and deduplication state is in memory; it is not durable across restart or shared between server instances.
+
+The default `SMS_PROVIDER=console` is a no-cost simulator. The outbox is available at `GET /v1/sms/outbox` using the SMS inbound bearer key. To configure the generic outbound webhook adapter, set:
+
+| Variable | Purpose |
+|---|---|
+| `SMS_INBOUND_KEY` | Required bearer secret for inbound SMS and simulator access. |
+| `SMS_PROVIDER=webhook` | Select outbound webhook mode instead of console mode. |
+| `SMS_WEBHOOK_URL` | HTTPS endpoint to which outbound JSON is POSTed. |
+| `SMS_WEBHOOK_KEY` | Optional bearer credential for the outbound gateway request. |
+
+The outbound body contains `to`, `text`, `encoding` (`GSM-7` or `UCS-2`), `units`, and estimated `segments`. The adapter reports non-success HTTP responses and network errors as delivery failures. This is a **generic webhook contract**, not a provider-specific integration: configure the gateway to accept this shape and to perform multipart concatenation/segmentation as required. Unicode content, including Amharic and Tigrinya, uses UCS-2 estimates (70 units for one segment, 67 per concatenated segment); GSM-7 estimates are 160/153. Actual segment accounting and delivery behavior must be confirmed with the chosen provider. Do not retry paid sends blindly unless the gateway supports idempotency.
+
+`STOP` suppresses further SMS through the application until `START`; it also removes the number from job alerts. Provider/carrier opt-out rules still apply. The webhook authenticates with the configured shared bearer secret; place it behind HTTPS and configure gateway-side signature/IP verification if available.
+
+### SMS simulator and tests
+
+For a local test, set `SMS_INBOUND_KEY` and keep `SMS_PROVIDER=console`, restart `npm start`, open `/sms-demo`, and enter the key. Test `HELP`, `LANGUAGE`, `AMHARIC`, an Amharic course question, `SUPPORT`, consent, and `STOP`/`START`. The simulator sends no real SMS and costs no provider credits. Automated tests cover language aliases and detection, SMS consent/handoff, opt-out, duplicate IDs, validation, throttling, Unicode segment estimates, webhook success/failure, and the protected route.
+
+### Telegram bot configuration and tests
+
+Configure `TELEGRAM_BOT_TOKEN` from BotFather and `API_URL` for the running INCLUSIVE API. `INTERNAL_KEY` is optional but recommended for server-to-server calls; set the same value in the API process and bot environment. Keep all credentials in `.env`, never in source control. Start the server, then run `npm run bot` in a second terminal. The bot uses Telegram long polling; Telegram users must start the bot first. Telegram API messages and the bot process require internet access.
+
+Telegram supports `/start`, `/help`, `/learn`, `/jobs`, `/support`, `/language`, `/en`, `/am`, `/om`, `/ti`, `/unsubscribe`, `/accommodation`, `/cancel`, and `/end`. Language selection and session preferences are per-chat memory and reset when the bot restarts. Course answers still use the existing `/v1/chat` API, which only supports English and Amharic. Afaan Oromo/Tigrinya menus can be selected, but course Q&A gives a language-limit message; voice messages are not processed. Automated tests cover command parsing, bot mentions, language aliases, preference selection, and underlying shared SMS/chat/handoff API behavior. They do not authenticate with Telegram or prove a live bot token works; test a real bot separately with a private test chat.
 
 Send a job alert to all subscribers (Windows):
 

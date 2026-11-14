@@ -19,6 +19,10 @@ import { Readable } from 'node:stream';
 import { createHandoffStore } from '../api/handoff/store.js';
 import { createConsoleSmsAdapter } from '../api/sms/console-adapter.js';
 import { createSmsRuntime } from '../api/sms/session.js';
+import { createWebhookSmsAdapter } from '../api/sms/webhook-adapter.js';
+import { detectChannelLanguage, parseChannelLanguage, smsEncoding } from '../api/sms/language.js';
+import { parseTelegramInput } from '../telegram/commands.js';
+import { applyTelegramLanguage } from '../telegram/commands.js';
 import { createJobStore } from '../api/jobs/store.js';
 import { MAX_SPEECH_BYTES, readSpeechUpload } from '../api/speech/upload.js';
 
@@ -604,13 +608,45 @@ test('SMS HTTP route: disabled by default, requires the inbound key, feeds the c
     const ok = await fetch(`${base}/v1/sms/inbound`, {
       method: 'POST',
       headers: { authorization: 'Bearer sms-secret-123456' },
-      body: JSON.stringify({ from: '+251911000000', text: 'how do i check my score' })
+      body: JSON.stringify({ from: '+251911000000', text: 'how do i check my score', messageId: 'gateway-message-1' })
     });
     assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).duplicate, false);
+
+    const duplicate = await fetch(`${base}/v1/sms/inbound`, {
+      method: 'POST', headers: { authorization: 'Bearer sms-secret-123456' },
+      body: JSON.stringify({ from: '+251911000000', text: 'how do i check my score', messageId: 'gateway-message-1' })
+    });
+    assert.equal(duplicate.status, 200);
+    assert.equal((await duplicate.json()).duplicate, true);
+
+    const invalid = await fetch(`${base}/v1/sms/inbound`, {
+      method: 'POST', headers: { authorization: 'Bearer sms-secret-123456' },
+      body: JSON.stringify({ from: 'not-a-phone', text: 'hello' })
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).error.code, 'invalid_sender');
 
     const out = await (await fetch(`${base}/v1/sms/outbox?after=0`, { headers: { authorization: 'Bearer sms-secret-123456' } })).json();
     assert.equal(out.messages.length, 1);
     assert.equal(out.messages[0].to, '+251911000000');
+    assert.equal(out.messages[0].encoding, 'GSM-7');
+  });
+
+  await withServer({ ...baseCfg, smsInboundKey: 'sms-secret-123456' }, async (base) => {
+    for (let i = 0; i < 60; i += 1) {
+      const response = await fetch(`${base}/v1/sms/inbound`, {
+        method: 'POST', headers: { authorization: 'Bearer sms-secret-123456' },
+        body: JSON.stringify({ from: '+251911000333', text: 'HELP', messageId: `limit-${i}` })
+      });
+      assert.equal(response.status, 200);
+    }
+    const limited = await fetch(`${base}/v1/sms/inbound`, {
+      method: 'POST', headers: { authorization: 'Bearer sms-secret-123456' },
+      body: JSON.stringify({ from: '+251911000333', text: 'HELP', messageId: 'limit-overflow' })
+    });
+    assert.equal(limited.status, 429);
+    assert.equal((await limited.json()).error.code, 'rate_limited');
   });
 });
 
@@ -731,4 +767,109 @@ test('Addis TTS returns configured errors and rejects unavailable voices', async
   await assert.rejects(unauthorized.synthesize({ text: 'test', language: 'am' }), (e) => e.code === 'speech_auth_failed');
   const noVoice = createAddisSpeech({ apiKey: 'test-key', fetchImpl: async () => Response.json({ data: [] }) });
   await assert.rejects(noVoice.synthesize({ text: 'test', language: 'am' }), (e) => e.code === 'speech_voice_unavailable');
+});
+
+test('channel language selection recognizes four language names and conservatively detects messages', () => {
+  assert.equal(parseChannelLanguage('ENGLISH'), 'en');
+  assert.equal(parseChannelLanguage('AMHARIC'), 'am');
+  assert.equal(parseChannelLanguage('AFAAN OROMOO'), 'om');
+  assert.equal(parseChannelLanguage('TIGRINYA'), 'ti');
+  assert.equal(parseChannelLanguage('ትግርኛ'), 'ti');
+  assert.equal(detectChannelLanguage('How do I check my score?'), 'en');
+  assert.equal(detectChannelLanguage('ኮርስ ውጤት እንዴት'), 'am');
+  assert.equal(detectChannelLanguage('Akkamitti hojii barnoota'), 'om');
+  assert.equal(detectChannelLanguage('kemey tigrinya dehan'), 'ti');
+  assert.equal(detectChannelLanguage('hello'), null, 'uncertain text asks user to choose');
+});
+
+test('SMS encoding reports GSM and Unicode multipart lengths', () => {
+  assert.deepEqual(smsEncoding('Hello'), { encoding: 'GSM-7', units: 5, segments: 1 });
+  assert.deepEqual(smsEncoding('a'.repeat(161)), { encoding: 'GSM-7', units: 161, segments: 2 });
+  assert.deepEqual(smsEncoding('አ'.repeat(71)), { encoding: 'UCS-2', units: 71, segments: 2 });
+});
+
+test('SMS language commands, opt-out, invalid input, deduplication, and throttling', async () => {
+  const adapter = createConsoleSmsAdapter();
+  const smsStore = createHandoffStore();
+  const jobs = createJobStore();
+  let time = 1000;
+  const runtime = createSmsRuntime({
+    chat: async ({ message, lang }) => ({ answer: `${lang}:${message}`, escalate: false }),
+    store: smsStore,
+    jobStore: jobs,
+    now: () => time,
+    maxPerMinute: 10,
+    sendOutbound: (to, text, meta) => adapter.send({ to, text, ...meta })
+  });
+  const phone = '+251911000111';
+
+  assert.equal((await runtime.handleInbound({ from: phone, text: 'Help' })).accepted, true);
+  assert.match(adapter.list(0).at(-1).text, /LANGUAGE/);
+  assert.equal((await runtime.handleInbound({ from: phone, text: 'AFAAN OROMOO', messageId: 'm-1' })).language, 'om');
+  assert.equal(runtime.getSession(phone).lang, 'om');
+  const beforeDuplicate = adapter.list(0).length;
+  assert.equal((await runtime.handleInbound({ from: phone, text: 'AFAAN OROMOO', messageId: 'm-1' })).duplicate, true);
+  assert.equal(adapter.list(0).length, beforeDuplicate, 'duplicate webhook delivery is not processed twice');
+
+  await runtime.handleInbound({ from: phone, text: 'How do I check my score?' });
+  assert.match(adapter.list(0).at(-1).text, /Afaan Ingiliffaa.*Amaaraa/);
+  await runtime.handleInbound({ from: phone, text: 'AMHARIC' });
+  await runtime.handleInbound({ from: phone, text: 'ኮርስ ውጤት እንዴት' });
+  assert.match(adapter.list(0).at(-1).text, /^am:/);
+  await runtime.handleInbound({ from: phone, text: 'TIGRINYA' });
+  assert.equal(runtime.getSession(phone).lang, 'ti');
+  await runtime.handleInbound({ from: phone, text: 'kemey tigrinya dehan' });
+  assert.match(adapter.list(0).at(-1).text, /English.*Amharic|English.*Amharic/i);
+
+  await runtime.handleInbound({ from: phone, text: 'STOP' });
+  assert.equal(runtime.getSession(phone).optedOut, true);
+  const afterStop = adapter.list(0).length;
+  assert.equal((await runtime.handleInbound({ from: phone, text: 'some follow-up text' })).reason, 'opted_out');
+  assert.equal(adapter.list(0).length, afterStop);
+  await runtime.handleInbound({ from: phone, text: 'START' });
+  assert.equal(runtime.getSession(phone).optedOut, false);
+
+  assert.equal((await runtime.handleInbound({ from: 'invalid', text: 'hi' })).reason, 'invalid_sender');
+  assert.equal((await runtime.handleInbound({ from: phone, text: 'x'.repeat(1001) })).reason, 'message_too_long');
+  const limitedPhone = '+251911000222';
+  await runtime.handleInbound({ from: limitedPhone, text: 'ENGLISH' });
+  for (let i = 0; i < 10; i += 1) await runtime.handleInbound({ from: limitedPhone, text: 'How do I check my score?' });
+  assert.equal((await runtime.handleInbound({ from: limitedPhone, text: 'How do I check my score?' })).reason, 'rate_limited');
+  time += 60001;
+  assert.equal((await runtime.handleInbound({ from: limitedPhone, text: 'HELP' })).accepted, true);
+});
+
+test('console SMS records Unicode segment metadata and webhook adapter reports gateway failures', async () => {
+  const consoleSms = createConsoleSmsAdapter();
+  const metadata = smsEncoding('አ'.repeat(71));
+  await consoleSms.send({ to: '+251911000000', text: 'አ'.repeat(71), ...metadata });
+  assert.equal(consoleSms.list()[0].encoding, 'UCS-2');
+  assert.equal(consoleSms.list()[0].segments, 2);
+
+  let request;
+  const webhook = createWebhookSmsAdapter({
+    url: 'https://gateway.example/messages', key: 'secret-for-test',
+    fetchImpl: async (url, options) => { request = { url, options }; return new Response('', { status: 202 }); }
+  });
+  await webhook.send({ to: '+251911000000', text: 'ሰላም', ...smsEncoding('ሰላም') });
+  assert.equal(JSON.parse(request.options.body).encoding, 'UCS-2');
+  assert.equal(request.options.headers.authorization, 'Bearer secret-for-test');
+  const failed = createWebhookSmsAdapter({ url: 'https://gateway.example/messages', fetchImpl: async () => new Response('', { status: 503 }) });
+  await assert.rejects(failed.send({ to: '+251911000000', text: 'hi' }), /HTTP 503/);
+});
+
+test('Telegram command parser supports new commands, bot mentions, and all language selections', () => {
+  assert.deepEqual(parseTelegramInput('/learn How do I check my score?'), {
+    text: '/learn How do I check my score?', command: '/learn', argument: 'How do I check my score?', language: null, knownCommand: true
+  });
+  assert.equal(parseTelegramInput('/language Afaan Oromoo').language, 'om');
+  assert.equal(parseTelegramInput('/ti@InclusiveBot').command, '/ti');
+  assert.equal(parseTelegramInput('/support').knownCommand, true);
+  assert.equal(parseTelegramInput('/unknown').knownCommand, false);
+  const session = { lang: null, languageExplicit: false };
+  assert.equal(applyTelegramLanguage(session, parseTelegramInput('/language Tigrinya')), 'ti');
+  assert.deepEqual(session, { lang: 'ti', languageExplicit: true });
+  for (const [label, expected] of [['English', 'en'], ['Amharic', 'am'], ['Afaan Oromoo', 'om'], ['Tigrinya', 'ti']]) {
+    assert.equal(parseTelegramInput(`/language ${label}`).language, expected);
+  }
 });
