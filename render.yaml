@@ -30,6 +30,12 @@ services:
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
+      - key: TELEGRAM_WEBHOOK_URL
+        value: https://inclusive-h8fk.onrender.com
+      - key: TELEGRAM_WEBHOOK_SECRET
+        value: ${INTERNAL_KEY}
+      - key: TELEGRAM_WEBHOOK_PATH
+        value: /telegram/webhook
       - key: SMS_INBOUND_KEY
         sync: false
       - key: SMS_PROVIDER
