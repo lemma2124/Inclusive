@@ -1,0 +1,48 @@
+openapi: 3.0.3
+info:
+  title: INCLUSIVE API
+  version: 0.2.0
+  description: Course-grounded tutor with human handoff. Answers only from course content.
+paths:
+  /v1/chat:
+    post:
+      summary: Ask the tutor a question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                lang:
+                  type: string
+                context:
+                  type: object
+                  properties:
+                    text:
+                      type: string
+                    title:
+                      type: string
+      responses:
+        '200':
+          description: Answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer:
+                    type: string
+                  citations:
+                    type: array
+                    items:
+                      type: object
+  /v1/handoff:
+    post:
+      summary: Request a human
+      responses:
+        '201':
+          description: Created

@@ -1,10 +1,12 @@
-/*! INCLUSIVE web assistant v1.3.0 | MIT | vanilla JS, no dependencies */
+/*! INCLUSIVE web assistant v1.3.5 | MIT | vanilla JS, no dependencies */
 (function () {
   'use strict';
   if (typeof window === 'undefined' || !window.customElements) { return; }
   if (window.customElements.get('inclusive-assistant') && window.customElements.get('savanna-assistant')) { return; }
 
-  var VERSION = '1.3.0';
+  var VERSION = '1.3.5';
+  var LANG_CYCLE = ['en', 'am', 'ti', 'om', 'so', 'ar'];
+  var LANG_SHORT = { en: 'EN', am: 'አማ', ti: 'ትግ', om: 'OM', so: 'SO', ar: 'AR' };
 
   var SCRIPT_ORIGIN = '';
   try {
@@ -18,366 +20,155 @@
 
   var STRINGS = {
     en: {
-      heading: 'INCLUSIVE course assistant',
-      openChat: 'Open chat',
-      closeChat: 'Close chat',
+      heading: 'INCLUSIVE course assistant', openChat: 'Open chat', closeChat: 'Close chat',
       welcome: 'Welcome to INCLUSIVE! Ask me anything about your course. Chat replies are available in English, Amharic, Tigrinya, Afaan Oromo, Somali, and Arabic.',
-      conversation: 'Conversation',
-      langGroup: 'Language',
-      label: 'Type your question',
-      hint: 'Press Enter to send. Press Shift and Enter together for a new line.',
-      send: 'Send',
-      mic: 'Ask by voice',
-      speechLanguage: 'Speech language',
-      cancelRecording: 'Cancel recording',
-      speechHint: 'Speech goes to Addis AI for transcription and may incur charges. Voice transcription is available in English, Amharic, Afaan Oromo, and Tigrinya. Typed chat also supports Somali and Arabic.',
-      listening: 'Listening…',
-      heard: 'Heard you. Check the text, then send.',
-      transcribing: 'Transcribing your recording…',
-      speechReady: 'Transcription ready. Review or edit it before sending.',
-      recordingTooLong: 'Recording stopped at the 30-second limit. Transcribing now.',
-      micTooLarge: 'This recording is too large to upload. Please try again with a shorter recording.',
-      speechTimeout: 'Speech recognition took too long. Please try a shorter recording.',
-      speechNotConfigured: 'Speech recognition is not configured. You can still type your question.',
-      speechFailed: 'Speech recognition failed. Please try again or type your question.',
-      speechGenerating: 'Preparing audio…',
-      addisListen: 'Listen (Addis voice)',
-      speechPlay: 'Play answer audio',
-      speechPause: 'Pause answer audio',
-      speechResume: 'Resume answer audio',
-      speechStop: 'Stop answer audio',
-      speechUnavailable: 'Audio playback is not available. The answer is shown as text.',
-      speechGenerateFailed: 'Could not generate audio. The answer is still available as text.',
-      thinking: 'Looking for an answer…',
-      sources: 'Sources',
-      readAloud: 'Read aloud',
-      human: 'Talk to a person',
+      conversation: 'Conversation', langGroup: 'Language', label: 'Type your question',
+      hint: 'Press Enter to send. Press Shift and Enter together for a new line.', send: 'Send', mic: 'Ask by voice',
+      cancelRecording: 'Cancel recording', listening: 'Listening…', heard: 'Heard you. Check the text, then send.',
+      transcribing: 'Transcribing your recording…', speechReady: 'Transcription ready. Review or edit it before sending.',
+      recordingTooLong: 'Recording stopped at the 30-second limit. Transcribing now.', micTooLarge: 'This recording is too large. Please try again with a shorter recording.',
+      speechTimeout: 'Speech recognition took too long. Please try a shorter recording.', speechNotConfigured: 'Speech recognition is not configured. You can still type your question.',
+      speechFailed: 'Speech recognition failed. Please try again or type your question.', speechGenerating: 'Preparing audio…',
+      addisListen: 'Listen (Addis voice)', speechPlay: 'Play answer audio', speechPause: 'Pause answer audio',
+      speechResume: 'Resume answer audio', speechStop: 'Stop answer audio', speechUnavailable: 'Audio playback is not available. The answer is shown as text.',
+      speechGenerateFailed: 'Could not generate audio. The answer is still available as text.', thinking: 'Looking for an answer…',
+      sources: 'Sources', readAloud: 'Read aloud', human: 'Talk to a person',
       humanConsent: 'A person can help you. If you continue, they will see your questions and answers from this chat. Please do not share passwords or ID numbers.',
-      humanYes: 'Yes, connect me',
-      humanNo: 'No, thanks',
-      humanCancelled: 'OK. You can keep asking the assistant.',
-      humanAlready: 'You are already connected to a person.',
-      connecting: 'Connecting you…',
+      humanYes: 'Yes, connect me', humanNo: 'No, thanks', humanCancelled: 'OK. You can keep asking the assistant.',
+      humanAlready: 'You are already connected to a person.', connecting: 'Connecting you…',
       humanWaiting: 'Your request was sent. Please wait for a person to join. What you type now goes to that person.',
-      humanJoined: 'A person has joined the chat.',
-      humanClosedAgent: 'The person ended the chat. You can keep asking the assistant.',
-      humanEndedYou: 'You ended the chat with the person. You can keep asking the assistant.',
-      humanLost: 'The connection to the person was lost. Please try again.',
-      humanMode: 'You are talking with a person',
-      humanEnd: 'End chat with the person',
-      humanSendFail: 'Your message was not sent. Please try again.',
-      humanBusy: 'Support is very busy right now. Please try again later.',
-      humanSent: 'I could not connect you to a person right now. Please contact your support team.',
-      humanIntro: 'You can reach a person here:',
-      humanLink: 'Open the support page',
-      agentWho: 'Support person:',
-      you: 'You:',
-      assistant: 'Assistant:',
-      error: 'Sorry, I could not get an answer right now. Please try again.',
-      rateLimited: 'Too many questions at once. Please wait a minute and try again.',
-      micUnsupported: 'Voice input does not work on this device or browser. Please type your question.',
-      micDenied: 'Microphone permission was not given.',
-      micNoSpeech: 'I did not hear anything. Please try again.',
-      micLangUnsupported: 'This device does not support voice input in this language. Please type your question.',
-      micNetwork: 'Voice input needs an internet connection. Please type your question.',
-      ttsUnsupported: 'Reading aloud does not work on this device.',
-      ttsNoVoice: 'This device has no voice for this language. Please read the text.',
-      shareScreen: 'Share my screen',
-      stopShare: 'Stop sharing',
-      sharing: 'Sharing your screen with the person. Use your browser\u2019s own sharing control to stop at any time.',
-      shareUnsupported: 'Screen sharing does not work on this device or browser.',
+      humanJoined: 'A person has joined the chat.', humanClosedAgent: 'The person ended the chat. You can keep asking the assistant.',
+      humanEndedYou: 'You ended the chat with the person. You can keep asking the assistant.', humanLost: 'The connection to the person was lost. Please try again.',
+      humanMode: 'You are talking with a person', humanEnd: 'End chat with the person', humanSendFail: 'Your message was not sent. Please try again.',
+      humanBusy: 'Support is very busy right now. Please try again later.', humanSent: 'I could not connect you to a person right now. Please contact your support team.',
+      humanIntro: 'You can reach a person here:', humanLink: 'Open the support page', agentWho: 'Support person:', you: 'You:', assistant: 'Assistant:',
+      error: 'Sorry, I could not get an answer right now. Please try again.', rateLimited: 'Too many questions at once. Please wait a minute and try again.',
+      micUnsupported: 'Voice input does not work on this device or browser. Please type your question.', micDenied: 'Microphone permission was not given.',
+      micNoSpeech: 'I did not hear anything. Please try again.', micLangUnsupported: 'This device does not support voice input in this language. Please type your question.',
+      micNetwork: 'Voice input needs an internet connection. Please type your question.', ttsUnsupported: 'Reading aloud does not work on this device.',
+      ttsNoVoice: 'This device has no voice for this language. Please read the text.', shareScreen: 'Share my screen', stopShare: 'Stop sharing',
+      sharing: 'Sharing your screen with the person. Use your browser\u2019s own sharing control to stop at any time.', shareUnsupported: 'Screen sharing does not work on this device or browser.',
       shareFailed: 'Screen sharing could not start. This can happen on some networks. Please try again, or describe the problem in words.',
-      shareEndedByYou: 'You stopped sharing your screen.',
-      shareStoppedDevice: 'Screen sharing stopped.',
-      accommodation: 'Request interview accommodations',
-      accommodationPrompt: 'Please describe what you need for an interview (for example: more time, a sign language interpreter, or a quiet room). You do not need to state a medical condition. Then press Send.',
+      shareEndedByYou: 'You stopped sharing your screen.', shareStoppedDevice: 'Screen sharing stopped.',
+      accommodation: 'Request interview accommodations', accommodationPrompt: 'Please describe what you need for an interview (for example: more time, a sign language interpreter, or a quiet room). You do not need to state a medical condition. Then press Send.',
       accommodationWaiting: 'Your request was sent to a person. They may message you here.'
     },
     am: {
-      heading: 'INCLUSIVE የኮርስ ረዳት',
-      openChat: 'ውይይቱን ክፈት',
-      closeChat: 'ውይይቱን ዝጋ',
+      heading: 'INCLUSIVE የኮርስ ረዳት', openChat: 'ውይይቱን ክፈት', closeChat: 'ውይይቱን ዝጋ',
       welcome: 'ወደ INCLUSIVE እንኳን በደህና በመጡ። ስለ ኮርሱ ይጠይቁ። በእንግሊዝኛ፣ በአማርኛ፣ በትግርኛ፣ በAfaan Oromo፣ በSoomaali ወይም በالعربية መልስ ማግኘት ይችላሉ።',
-      conversation: 'ውይይት',
-      langGroup: 'ቋንቋ',
-      label: 'ጥያቄዎን ይጻፉ',
-      hint: 'ለመላክ Enter ይጫኑ። አዲስ መስመር ለመጀመር Shift እና Enter አብረው ይጫኑ።',
-      send: 'ላክ',
-      mic: 'በድምፅ ይጠይቁ',
-      speechLanguage: 'የድምፅ ቋንቋ',
-      cancelRecording: 'ቀረጻውን ሰርዝ',
-      speechHint: 'ቀረጻው ለመጻፍ ወደ Addis AI ይላካል፤ ክፍያ ሊኖረው ይችላል። የድምፅ መተርጎም በእንግሊዝኛ፣ በአማርኛ፣ በAfaan Oromo እና በትግርኛ ይደገፋል። በጽሑፍ ውይይት ሶማሊኛና ዓረብኛም ይደገፋሉ።',
-      listening: 'እየሰማሁ ነው…',
-      heard: 'ሰምቻለሁ። ጽሑፉን ይመልከቱ፣ ከዚያ ይላኩ።',
-      transcribing: 'ቀረጻዎን ወደ ጽሑፍ እየቀየርኩ ነው…',
-      speechReady: 'ጽሑፉ ዝግጁ ነው። ከመላክዎ በፊት ይመልከቱት ወይም ያስተካክሉት።',
-      recordingTooLong: 'ቀረጻው የ30 ሰከንድ ገደቡ ላይ ቆሟል። አሁን ወደ ጽሑፍ እየተቀየረ ነው።',
-      micTooLarge: 'ቀረጻው በጣም ትልቅ ነው። እባክዎ አጭር ቀረጻ ይሞክሩ።',
-      speechTimeout: 'የድምፅ መተርጎሙ ብዙ ጊዜ ወስዷል። እባክዎ አጭር ቀረጻ ይሞክሩ።',
-      speechNotConfigured: 'የድምፅ መተርጎሚያው አልተዋቀረም። ጥያቄዎን በጽሑፍ መጻፍ ይችላሉ።',
-      speechFailed: 'የድምፅ መተርጎሙ አልተሳካም። እንደገና ይሞክሩ ወይም ጥያቄዎን ይጻፉ።',
-      speechGenerating: 'ድምፁን እያዘጋጀሁ ነው…',
-      addisListen: 'በአዲስ ድምፅ ያዳምጡ',
-      speechPlay: 'መልሱን በድምፅ አጫውት',
-      speechPause: 'የመልሱን ድምፅ አቁም',
-      speechResume: 'የመልሱን ድምፅ ቀጥል',
-      speechStop: 'የመልሱን ድምፅ ፈጽሞ አቁም',
-      speechUnavailable: 'የድምፅ ማጫወቻው አይገኝም። መልሱ በጽሑፍ ይታያል።',
-      speechGenerateFailed: 'ድምፁን ማዘጋጀት አልተቻለም። መልሱ በጽሑፍ አለ።',
-      thinking: 'መልስ እየፈለግሁ ነው…',
-      sources: 'ምንጮች',
-      readAloud: 'በድምፅ አንብብ',
-      human: 'ሰው ያነጋግሩ',
+      conversation: 'ውይይት', langGroup: 'ቋንቋ', label: 'ጥያቄዎን ይጻፉ', hint: 'ለመላክ Enter ይጫኑ። አዲስ መስመር ለመጀመር Shift እና Enter አብረው ይጫኑ።',
+      send: 'ላክ', mic: 'በድምፅ ይጠይቁ', cancelRecording: 'ቀረጻውን ሰርዝ', listening: 'እየሰማሁ ነው…',
+      heard: 'ሰምቻለሁ። ጽሑፉን ይመልከቱ፣ ከዚያ ይላኩ።', transcribing: 'ቀረጻዎን ወደ ጽሑፍ እየቀየርኩ ነው…',
+      speechReady: 'ጽሑፉ ዝግጁ ነው። ከመላክዎ በፊት ይመልከቱት ወይም ያስተካክሉት።', recordingTooLong: 'ቀረጻው የ30 ሰከንድ ገደቡ ላይ ቆሟል። አሁን ወደ ጽሑፍ እየተቀየረ ነው።',
+      micTooLarge: 'ቀረጻው በጣም ትልቅ ነው። እባክዎ አጭር ቀረጻ ይሞክሩ።', speechTimeout: 'የድምፅ መተርጎሙ ብዙ ጊዜ ወስዷል። እባክዎ አጭር ቀረጻ ይሞክሩ።',
+      speechNotConfigured: 'የድምፅ መተርጎሚያው አልተዋቀረም። ጥያቄዎን በጽሑፍ መጻፍ ይችላሉ።', speechFailed: 'የድምፅ መተርጎሙ አልተሳካም። እንደገና ይሞክሩ ወይም ጥያቄዎን ይጻፉ።',
+      speechGenerating: 'ድምፁን እያዘጋጀሁ ነው…', addisListen: 'በአዲስ ድምፅ ያዳምጡ', speechPlay: 'መልሱን በድምፅ አጫውት',
+      speechPause: 'የመልሱን ድምፅ አቁም', speechResume: 'የመልሱን ድምፅ ቀጥል', speechStop: 'የመልሱን ድምፅ ፈጽሞ አቁም',
+      speechUnavailable: 'የድምፅ ማጫወቻው አይገኝም። መልሱ በጽሑፍ ይታያል።', speechGenerateFailed: 'ድምፁን ማዘጋጀት አልተቻለም። መልሱ በጽሑፍ አለ።',
+      thinking: 'መልስ እየፈለግሁ ነው…', sources: 'ምንጮች', readAloud: 'በድምፅ አንብብ', human: 'ሰው ያነጋግሩ',
       humanConsent: 'አንድ ሰው ሊረዳዎት ይችላል። ከቀጠሉ፣ በዚህ ውይይት ውስጥ ያሉትን ጥያቄዎችዎን እና መልሶቹን ያያሉ። እባክዎ የይለፍ ቃል ወይም የመታወቂያ ቁጥር አያጋሩ።',
-      humanYes: 'አዎ፣ አገናኙኝ',
-      humanNo: 'አይ፣ አመሰግናለሁ',
-      humanCancelled: 'እሺ። ረዳቱን መጠየቅ መቀጠል ይችላሉ።',
-      humanAlready: 'አስቀድመው ከሰው ጋር ተገናኝተዋል።',
-      connecting: 'እያገናኘሁ ነው…',
-      humanWaiting: 'ጥያቄዎ ተልኳል። አንድ ሰው እስኪመጣ እባክዎ ይጠብቁ። አሁን የሚጽፉት ለዚያ ሰው ይደርሰዋል።',
-      humanJoined: 'አንድ ሰው ውይይቱን ተቀላቅሏል።',
-      humanClosedAgent: 'ሰውየው ውይይቱን ዘግቷል። ረዳቱን መጠየቅ መቀጠል ይችላሉ።',
-      humanEndedYou: 'ከሰው ጋር የነበረውን ውይይት አብቅተዋል። ረዳቱን መጠየቅ መቀጠል ይችላሉ።',
-      humanLost: 'ከሰው ጋር ያለው ግንኙነት ተቋርጧል። እባክዎ እንደገና ይሞክሩ።',
-      humanMode: 'ከሰው ጋር እያወሩ ነው',
-      humanEnd: 'ከሰው ጋር ማውራት አብቅት',
-      humanSendFail: 'መልዕክቱ አልተላከም። እባክዎ እንደገና ይሞክሩ።',
-      humanBusy: 'አሁን የድጋፍ አገልግሎቱ በጣም ተጨናንቋል። እባክዎ ቆይተው ይሞክሩ።',
-      humanSent: 'አሁን ከሰው ጋር ማገናኘት አልተቻለም። እባክዎ የድጋፍ ቡድንዎን ያነጋግሩ።',
-      humanIntro: 'ሰው ለማነጋገር እዚህ ይጠቀሙ፦',
-      humanLink: 'የድጋፍ ገጹን ይክፈቱ',
-      agentWho: 'የድጋፍ ሰው፦',
-      you: 'እርስዎ፦',
-      assistant: 'ረዳት፦',
-      error: 'ይቅርታ፣ አሁን መልስ ማግኘት አልተቻለም። እባክዎ እንደገና ይሞክሩ።',
-      rateLimited: 'በአንድ ጊዜ ብዙ ጥያቄዎች ተጠይቀዋል። እባክዎ ትንሽ ቆይተው እንደገና ይሞክሩ።',
-      micUnsupported: 'በዚህ መሣሪያ ወይም አሳሽ የድምፅ ግብዓት አይሠራም። እባክዎ ጥያቄዎን ይጻፉ።',
-      micDenied: 'የማይክሮፎን ፈቃድ አልተሰጠም።',
-      micNoSpeech: 'ምንም ድምፅ አልሰማሁም። እባክዎ እንደገና ይሞክሩ።',
-      micLangUnsupported: 'ይህ መሣሪያ የአማርኛ ድምፅ ግብዓትን አይደግፍም። እባክዎ ጥያቄዎን ይጻፉ።',
-      micNetwork: 'የድምፅ ግብዓት የበይነመረብ ግንኙነት ይፈልጋል። እባክዎ ጥያቄዎን ይጻፉ።',
-      ttsUnsupported: 'በዚህ መሣሪያ በድምፅ ማንበብ አይሠራም።',
-      ttsNoVoice: 'ይህ መሣሪያ የአማርኛ ድምፅ የለውም። እባክዎ ጽሑፉን ያንብቡ።',
-      shareScreen: 'ማያ ገጼን አጋራ',
-      stopShare: 'ማጋራት አቁም',
-      sharing: 'ማያ ገጽዎን ከሰውየው ጋር እያጋሩ ነው። በማንኛውም ጊዜ ለማቆም የአሳሽዎን የራሱን መቆጣጠሪያ ይጠቀሙ።',
-      shareUnsupported: 'በዚህ መሣሪያ ወይም አሳሽ ማያ ገጽ ማጋራት አይሠራም።',
+      humanYes: 'አዎ፣ አገናኙኝ', humanNo: 'አይ፣ አመሰግናለሁ', humanCancelled: 'እሺ። ረዳቱን መጠየቅ መቀጠል ይችላሉ።',
+      humanAlready: 'አስቀድመው ከሰው ጋር ተገናኝተዋል።', connecting: 'እያገናኘሁ ነው…', humanWaiting: 'ጥያቄዎ ተልኳል። አንድ ሰው እስኪመጣ እባክዎ ይጠብቁ። አሁን የሚጽፉት ለዚያ ሰው ይደርሰዋል።',
+      humanJoined: 'አንድ ሰው ውይይቱን ተቀላቅሏል።', humanClosedAgent: 'ሰውየው ውይይቱን ዘግቷል። ረዳቱን መጠየቅ መቀጠል ይችላሉ።',
+      humanEndedYou: 'ከሰው ጋር የነበረውን ውይይት አብቅተዋል። ረዳቱን መጠየቅ መቀጠል ይችላሉ።', humanLost: 'ከሰው ጋር ያለው ግንኙነት ተቋርጧል። እባክዎ እንደገና ይሞክሩ።',
+      humanMode: 'ከሰው ጋር እያወሩ ነው', humanEnd: 'ከሰው ጋር ማውራት አብቅት', humanSendFail: 'መልዕክቱ አልተላከም። እባክዎ እንደገና ይሞክሩ።',
+      humanBusy: 'አሁን የድጋፍ አገልግሎቱ በጣም ተጨናንቋል። እባክዎ ቆይተው ይሞክሩ።', humanSent: 'አሁን ከሰው ጋር ማገናኘት አልተቻለም። እባክዎ የድጋፍ ቡድንዎን ያነጋግሩ።',
+      humanIntro: 'ሰው ለማነጋገር እዚህ ይጠቀሙ፦', humanLink: 'የድጋፍ ገጹን ይክፈቱ', agentWho: 'የድጋፍ ሰው፦', you: 'እርስዎ፦', assistant: 'ረዳት፦',
+      error: 'ይቅርታ፣ አሁን መልስ ማግኘት አልተቻለም። እባክዎ እንደገና ይሞክሩ።', rateLimited: 'በአንድ ጊዜ ብዙ ጥያቄዎች ተጠይቀዋል። እባክዎ ትንሽ ቆይተው እንደገና ይሞክሩ።',
+      micUnsupported: 'በዚህ መሣሪያ ወይም አሳሽ የድምፅ ግብዓት አይሠራም። እባክዎ ጥያቄዎን ይጻፉ።', micDenied: 'የማይክሮፎን ፈቃድ አልተሰጠም።',
+      micNoSpeech: 'ምንም ድምፅ አልሰማሁም። እባክዎ እንደገና ይሞክሩ።', micLangUnsupported: 'ይህ መሣሪያ የአማርኛ ድምፅ ግብዓትን አይደግፍም። እባክዎ ጥያቄዎን ይጻፉ።',
+      micNetwork: 'የድምፅ ግብዓት የበይነመረብ ግንኙነት ይፈልጋል። እባክዎ ጥያቄዎን ይጻፉ።', ttsUnsupported: 'በዚህ መሣሪያ በድምፅ ማንበብ አይሠራም።',
+      ttsNoVoice: 'ይህ መሣሪያ የአማርኛ ድምፅ የለውም። እባክዎ ጽሑፉን ያንብቡ።', shareScreen: 'ማያ ገጼን አጋራ', stopShare: 'ማጋራት አቁም',
+      sharing: 'ማያ ገጽዎን ከሰውየው ጋር እያጋሩ ነው። በማንኛውም ጊዜ ለማቆም የአሳሽዎን የራሱን መቆጣጠሪያ ይጠቀሙ።', shareUnsupported: 'በዚህ መሣሪያ ወይም አሳሽ ማያ ገጽ ማጋራት አይሠራም።',
       shareFailed: 'ማያ ገጽ ማጋራት መጀመር አልተቻለም። ይህ በአንዳንድ አውታረ መረቦች ላይ ሊከሰት ይችላል። እባክዎ እንደገና ይሞክሩ፣ ወይም ችግሩን በቃላት ይግለጹ።',
-      shareEndedByYou: 'ማያ ገጽዎን ማጋራት አቁመዋል።',
-      shareStoppedDevice: 'ማያ ገጽ ማጋራት ቆሟል።',
-      accommodation: 'የቃለ መጠይቅ ድጋፍ ይጠይቁ',
+      shareEndedByYou: 'ማያ ገጽዎን ማጋራት አቁመዋል።', shareStoppedDevice: 'ማያ ገጽ ማጋራት ቆሟል።', accommodation: 'የቃለ መጠይቅ ድጋፍ ይጠይቁ',
       accommodationPrompt: 'ለቃለ መጠይቅ ምን እንደሚያስፈልግዎ ይግለጹ (ለምሳሌ፦ ተጨማሪ ጊዜ፣ የምልክት ቋንቋ አስተርጓሚ፣ ወይም ጸጥ ያለ ክፍል)። የህክምና ሁኔታ መግለጽ አያስፈልግም። ከዚያ ላክ ይጫኑ።',
       accommodationWaiting: 'ጥያቄዎ ለሰው ተልኳል። እዚህ ሊጽፉልዎት ይችላሉ።'
     },
-    ti: {
-      heading: 'INCLUSIVE ሓጋዚ ትምህርቲ',
-      openChat: 'ዕላል ክፈት',
-      closeChat: 'ዕላል ዕጸው',
-      welcome: 'እንቋዕ ናብ INCLUSIVE ብደሓን መጻእኩም። ብዛዕባ ትምህርትኹም ሕተቱ። ብእንግሊዝኛ፣ ብኣምሓርኛ፣ ብትግርኛ፣ Afaan Oromo፣ Soomaali ወይ ዓረብኛ መልሲ ክትረኽቡ ትኽእሉ።',
-      conversation: 'ዕላል',
-      langGroup: 'ቋንቋ',
-      label: 'ሕቶኻ ጸሓፍ',
-      hint: 'ንምልኣኽ Enter ጽቐጥ። ሓድሽ መስመር ንምጅማር Shift ምስ Enter ጽቐጥ።',
-      send: 'ልኣኽ',
-      mic: 'ብድምጺ ሕተት',
-      speechLanguage: 'ቋንቋ ድምጺ',
-      cancelRecording: 'ቀረጻ ሰርዝ',
-      speechHint: 'ቀረጻ ንምጽሓፍ ናብ Addis AI ይለኣኽ፤ ወጻኢ ክህሉ ይኽእል። ድምጺ ብእንግሊዝኛ፣ ብኣምሓርኛ፣ Afaan Oromo እና ብትግርኛ ይድገፍ። ብጽሑፍ ሶማሊኛን ዓረብኛን እውን ይድገፉ።',
-      speechReady: 'ጽሑፍ ድምጺ ድሉው እዩ። ቅድሚ ምልኣኽካ ኣንብቦ ወይ ኣስተኻኽሎ።',
-      thinking: 'መልሲ እደሊ ኣለኹ…',
-      sources: 'ምንጭታት',
-      readAloud: 'ብድምጺ ኣንብብ',
-      human: 'ምስ ሰብ ተዘራረብ',
-      humanConsent: 'ሰብ ክሕግዘካ ይኽእል። እንተቐጺልካ፣ ኣብዚ ዕላል ዘለዉ ሕቶታትካን መልስታትካን ክርኢ እዩ። ሚስጢራዊ ቃል ወይ ቁጽሪ መንነት ኣይትለኣኽ።',
-      humanYes: 'እወ፣ ኣራኽበኒ',
-      humanNo: 'ኣይፋል፣ የቐንየለይ',
-      connecting: 'እየ የራኽበካ ዘለኹ…',
-      humanMode: 'ምስ ሰብ ትዛረብ ኣለኻ',
-      humanEnd: 'ምስ ሰብ ዘለኻ ዕላል ዛዝም',
-      error: 'ይቕሬታ፣ ሕጂ መልሲ ክረክብ ኣይከኣልኩን። እንደገና ፈትን።',
-      rateLimited: 'ብዙሕ ሕቶታት ተላኢኾም። ቁሩብ ተጸበ እሞ እንደገና ፈትን።',
-      accommodation: 'ናይ ቃለ መጠይቕ ሓገዝ ሕተት'
-    },
-    om: {
-      heading: 'Gargaaraa Koorsii INCLUSIVE',
-      openChat: 'Marii bani',
-      closeChat: 'Marii cufi',
-      welcome: 'Baga gara INCLUSIVE dhuftan! Waa’ee koorsii keessanii gaafadhaa. Afaan Ingiliffaa, Amaariffaa, Tigiree, Afaan Oromo, Soomaali fi Arabiffaan deebii argachuu dandeessu.',
-      conversation: 'Haasa’a',
-      langGroup: 'Afaan',
-      label: 'Gaaffii kee barreessi',
-      hint: 'Erguuf Enter tuqi. Sarara haaraa jalqabuuf Shift fi Enter waliin tuqi.',
-      send: 'Ergi',
-      mic: 'Sagaleedhaan gaafadhu',
-      speechLanguage: 'Afaan sagalee',
-      cancelRecording: 'Waraabbiicha haqi',
-      speechHint: 'Sagaleen gara Addis AItti barreeffama; kaffaltiin jiraachuu danda’a. Sagalee Ingiliffaa, Amaariffaa, Afaan Oromo fi Tigiree ni deeggara. Haasaan barreeffamaa Soomaali fi Arabiffaas ni deeggara.',
-      speechReady: 'Waraabbiin barreeffameera. Erguun dura dubbisi ykn gulaali.',
-      thinking: 'Deebii barbaadaa jira…',
-      sources: 'Maddoota',
-      readAloud: 'Sagaleedhaan dubbisi',
-      human: 'Nama waliin haasa’i',
-      humanConsent: 'Namni tokko si gargaaruu danda’a. Yoo itti fuftan, gaaffii fi deebii haasaa kanaa ni arga. Maaloo icciitii ykn lakkoofsa eenyummaa hin ergin.',
-      humanYes: 'Eeyyee, na qunnamsiisi',
-      humanNo: 'Lakki, galatoomi',
-      connecting: 'Si qunnamsiisaa jira…',
-      humanMode: 'Nama waliin haasa’aa jirta',
-      humanEnd: 'Haasa’a nama waliin jiru xumuri',
-      error: 'Dhiifama, amma deebii argachuu hin dandeenye. Maaloo irra deebi’ii yaali.',
-      rateLimited: 'Gaaffiin baay’een yeroo tokkotti dhufe. Xiqqoo eegiitii irra deebi’ii yaali.',
-      accommodation: 'Deeggarsa af-gaaffii hojii gaafadhu'
-    },
-    so: {
-      heading: 'Kaaliyaha koorsada INCLUSIVE',
-      openChat: 'Fur wada sheekaysiga',
-      closeChat: 'Xir wada sheekaysiga',
-      welcome: 'Ku soo dhowow INCLUSIVE! Weydii su’aal ku saabsan koorsadaada. Jawaab waxaad ku heli kartaa Ingiriisi, Amxaari, Tigrinya, Afaan Oromo, Soomaali ama Carabi.',
-      conversation: 'Wadahadal',
-      langGroup: 'Luqad',
-      label: 'Qor su’aashaada',
-      hint: 'Riix Enter si aad u dirto. Riix Shift iyo Enter si aad sadar cusub u bilowdo.',
-      send: 'Dir',
-      mic: 'Cod ku weydii',
-      speechLanguage: 'Luqadda codka',
-      cancelRecording: 'Jooji duubista',
-      speechHint: 'Codka waxaa loo diraa Addis AI si qoraal loogu beddelo; kharash ayaa jiri kara. Codka Ingiriisiga, Amxaariga, Afaan Oromo iyo Tigrinya waa la taageeraa. Qoraal ahaan, Soomaali iyo Carabi sidoo kale waa la taageeraa.',
-      speechReady: 'Qoraalka codku waa diyaar. Dib u eeg ama sax ka hor intaadan dirin.',
-      thinking: 'Jawaab ayaa la raadinayaa…',
-      sources: 'Ilaha',
-      readAloud: 'Cod dheer ku akhri',
-      human: 'Qof la hadal',
-      humanConsent: 'Qof ayaa ku caawin kara. Haddii aad sii waddo, wuxuu arki doonaa su’aalaha iyo jawaabaha wada sheekaysigan. Ha wadaagin furaha sirta ah ama lambarka aqoonsiga.',
-      humanYes: 'Haa, i xidh',
-      humanNo: 'Maya, mahadsanid',
-      connecting: 'Waa lagu xidhayaa…',
-      humanMode: 'Waxaad la hadlaysaa qof',
-      humanEnd: 'Jooji wada hadalka qofka',
-      error: 'Waan ka xunnahay, hadda jawaab lama helin. Fadlan mar kale isku day.',
-      rateLimited: 'Su’aalo badan ayaa hal mar yimid. Sug wax yar oo mar kale isku day.',
-      accommodation: 'Codso taageero wareysi shaqo'
-    },
-    ar: {
-      heading: 'مساعد التعلّم من INCLUSIVE',
-      openChat: 'افتح المحادثة',
-      closeChat: 'أغلق المحادثة',
-      welcome: 'مرحبًا بك في INCLUSIVE! اطرح سؤالًا عن الدورة. يمكن أن تكون الإجابة بالإنجليزية أو الأمهرية أو التغرينية أو الأورومية أو الصومالية أو العربية.',
-      conversation: 'المحادثة',
-      langGroup: 'اللغة',
-      label: 'اكتب سؤالك',
-      hint: 'اضغط Enter للإرسال. اضغط Shift مع Enter لبدء سطر جديد.',
-      send: 'إرسال',
-      mic: 'اسأل بالصوت',
-      speechLanguage: 'لغة الصوت',
-      cancelRecording: 'إلغاء التسجيل',
-      speechHint: 'يُرسل التسجيل إلى Addis AI لتحويله إلى نص وقد تُفرض رسوم. يتوفر تحويل الصوت للإنجليزية والأمهرية والأورومية والتغرينية. وتدعم المحادثة النصية أيضًا الصومالية والعربية.',
-      speechReady: 'أصبح النص جاهزًا. راجعه أو عدّله قبل الإرسال.',
-      thinking: 'جارٍ البحث عن إجابة…',
-      sources: 'المصادر',
-      readAloud: 'اقرأ بصوت مرتفع',
-      human: 'تحدث إلى شخص',
-      humanConsent: 'يمكن لشخص مساعدتك. إذا تابعت، فسيطّلع على أسئلتك وإجاباتك في هذه المحادثة. لا تشارك كلمات المرور أو أرقام الهوية.',
-      humanYes: 'نعم، أوصلني بشخص',
-      humanNo: 'لا، شكرًا',
-      connecting: 'جارٍ توصيلك…',
-      humanMode: 'أنت تتحدث مع شخص',
-      humanEnd: 'إنهاء المحادثة مع الشخص',
-      error: 'عذرًا، تعذّر الحصول على إجابة الآن. حاول مرة أخرى.',
-      rateLimited: 'وصلت أسئلة كثيرة في وقت واحد. انتظر قليلًا ثم حاول مجددًا.',
-      accommodation: 'اطلب ترتيبات لمقابلة العمل'
-    }
+    ti: { heading: 'INCLUSIVE ሓጋዚ ትምህርቲ', openChat: 'ዕላል ክፈት', closeChat: 'ዕላል ዕጸው', welcome: 'እንቋዕ ናብ INCLUSIVE ብደሓን መጻእኩም።', conversation: 'ዕላል', langGroup: 'ቋንቋ', label: 'ሕቶኻ ጸሓፍ', hint: 'ንምልኣኽ Enter ጽቐጥ።', send: 'ልኣኽ', mic: 'ብድምጺ ሕተት', cancelRecording: 'ቀረጻ ሰርዝ', speechReady: 'ጽሑፍ ድምጺ ድሉው እዩ።', thinking: 'መልሲ እደሊ ኣለኹ…', sources: 'ምንጭታት', readAloud: 'ብድምጺ ኣንብብ', human: 'ምስ ሰብ ተዘራረብ', humanConsent: 'ሰብ ክሕግዘካ ይኽእል።', humanYes: 'እወ፣ ኣራኽበኒ', humanNo: 'ኣይፋል፣ የቐንየለይ', connecting: 'እየ የራኽበካ ዘለኹ…', humanMode: 'ምስ ሰብ ትዛረብ ኣለኻ', humanEnd: 'ምስ ሰብ ዘለኻ ዕላል ዛዝም', error: 'ይቕሬታ፣ ሕጂ መልሲ ክረክብ ኣይከኣልኩን።', rateLimited: 'ብዙሕ ሕቶታት ተላኢኾም።', accommodation: 'ናይ ቃለ መጠይቕ ሓገዝ ሕተት' },
+    om: { heading: 'Gargaaraa Koorsii INCLUSIVE', openChat: 'Marii bani', closeChat: 'Marii cufi', welcome: 'Baga gara INCLUSIVE dhuftan!', conversation: 'Haasa’a', langGroup: 'Afaan', label: 'Gaaffii kee barreessi', hint: 'Erguuf Enter tuqi.', send: 'Ergi', mic: 'Sagaleedhaan gaafadhu', cancelRecording: 'Waraabbiicha haqi', speechReady: 'Waraabbiin barreeffameera.', thinking: 'Deebii barbaadaa jira…', sources: 'Maddoota', readAloud: 'Sagaleedhaan dubbisi', human: 'Nama waliin haasa’i', humanConsent: 'Namni tokko si gargaaruu danda’a.', humanYes: 'Eeyyee, na qunnamsiisi', humanNo: 'Lakki, galatoomi', connecting: 'Si qunnamsiisaa jira…', humanMode: 'Nama waliin haasa’aa jirta', humanEnd: 'Haasa’a nama waliin jiru xumuri', error: 'Dhiifama, amma deebii argachuu hin dandeenye.', rateLimited: 'Gaaffiin baay’een yeroo tokkotti dhufe.', accommodation: 'Deeggarsa af-gaaffii hojii gaafadhu' },
+    so: { heading: 'Kaaliyaha koorsada INCLUSIVE', openChat: 'Fur wada sheekaysiga', closeChat: 'Xir wada sheekaysiga', welcome: 'Ku soo dhowow INCLUSIVE!', conversation: 'Wadahadal', langGroup: 'Luqad', label: 'Qor su’aashaada', hint: 'Riix Enter si aad u dirto.', send: 'Dir', mic: 'Cod ku weydii', cancelRecording: 'Jooji duubista', speechReady: 'Qoraalka codku waa diyaar.', thinking: 'Jawaab ayaa la raadinayaa…', sources: 'Ilaha', readAloud: 'Cod dheer ku akhri', human: 'Qof la hadal', humanConsent: 'Qof ayaa ku caawin kara.', humanYes: 'Haa, i xidh', humanNo: 'Maya, mahadsanid', connecting: 'Waa lagu xidhayaa…', humanMode: 'Waxaad la hadlaysaa qof', humanEnd: 'Jooji wada hadalka qofka', error: 'Waan ka xunnahay, hadda jawaab lama helin.', rateLimited: 'Su’aalo badan ayaa hal mar yimid.', accommodation: 'Codso taageero wareysi shaqo' },
+    ar: { heading: 'مساعد التعلّم من INCLUSIVE', openChat: 'افتح المحادثة', closeChat: 'أغلق المحادثة', welcome: 'مرحبًا بك في INCLUSIVE!', conversation: 'المحادثة', langGroup: 'اللغة', label: 'اكتب سؤالك', hint: 'اضغط Enter للإرسال.', send: 'إرسال', mic: 'اسأل بالصوت', cancelRecording: 'إلغاء التسجيل', speechReady: 'أصبح النص جاهزًا.', thinking: 'جارٍ البحث عن إجابة…', sources: 'المصادر', readAloud: 'اقرأ بصوت مرتفع', human: 'تحدث إلى شخص', humanConsent: 'يمكن لشخص مساعدتك.', humanYes: 'نعم، أوصلني بشخص', humanNo: 'لا، شكرًا', connecting: 'جارٍ توصيلك…', humanMode: 'أنت تتحدث مع شخص', humanEnd: 'إنهاء المحادثة مع الشخص', error: 'عذرًا، تعذّر الحصول على إجابة الآن.', rateLimited: 'وصلت أسئلة كثيرة في وقت واحد.', accommodation: 'اطلب ترتيبات لمقابلة العمل' }
   };
 
   var TEMPLATE = [
     '<style>',
-    ':host{position:fixed;right:1rem;bottom:1rem;z-index:2147483000;display:block;width:27rem;max-width:calc(100vw - 2rem);--sa-bg:#ffffff;--sa-fg:#1a1a1a;--sa-muted:#4a4a4a;--sa-accent:#0b5cad;--sa-on-accent:#ffffff;--sa-bot:#eef1f4;--sa-border:#6b7280;--sa-error:#b3261e;',
-    'font-family:system-ui,-apple-system,"Segoe UI","Noto Sans Ethiopic","Nyala","Abyssinica SIL",sans-serif;font-size:1rem;line-height:1.5;color:var(--sa-fg)}',
-    ':host([mode="inline"]){position:static;width:auto;max-width:100%;z-index:auto}',
-    ':host([theme="dark"]){--sa-bg:#121212;--sa-fg:#f1f1f1;--sa-muted:#c4c7c5;--sa-accent:#8ab4f8;--sa-on-accent:#0b1b33;--sa-bot:#2a2a2a;--sa-border:#9aa0a6;--sa-error:#ffb4ab}',
-    '@media (prefers-color-scheme:dark){:host(:not([theme="light"])){--sa-bg:#121212;--sa-fg:#f1f1f1;--sa-muted:#c4c7c5;--sa-accent:#8ab4f8;--sa-on-accent:#0b1b33;--sa-bot:#2a2a2a;--sa-border:#9aa0a6;--sa-error:#ffb4ab}}',
-    '*,*::before,*::after{box-sizing:border-box}',
-    '[hidden]{display:none !important}',
-    '.shell{display:flex;flex-direction:column-reverse;align-items:flex-end;gap:.75rem}',
-    '.box{display:flex;flex-direction:column;gap:.75rem;width:100%;height:min(42rem,calc(100vh - 6rem));max-height:calc(100vh - 6rem);padding:1rem;overflow:auto;background:var(--sa-bg);color:var(--sa-fg);border:2px solid var(--sa-border);border-radius:.75rem;box-shadow:0 8px 32px rgba(0,0,0,.24)}',
-    '.shell.open .box{position:absolute;right:0;bottom:4.5rem}',
-    '.inline .box{height:auto;max-height:none;box-shadow:none}',
-    '.top{display:flex;flex:0 0 auto;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}',
-    '.title{margin:0;font-size:1.25rem}',
-    '.close{flex:0 0 auto;padding:.25rem .75rem}',
-    '.launcher{display:flex;width:3.75rem;height:3.75rem;min-width:3.75rem;align-items:center;justify-content:center;padding:.75rem;border-radius:50%;box-shadow:0 4px 16px rgba(0,0,0,.25);font-weight:700}',
-    '.launcher-icon{display:block;width:1.5rem;height:1.5rem}',
-    '.langs{display:flex;flex-wrap:wrap;gap:.25rem}',
-    '.mode{margin:0;padding:.375rem .75rem;font-weight:700;color:var(--sa-on-accent);background:var(--sa-accent);border-radius:.5rem}',
-    'button{font:inherit;min-width:2.75rem;min-height:2.75rem;padding:.5rem 1rem;color:var(--sa-accent);background:var(--sa-bg);border:2px solid var(--sa-accent);border-radius:.5rem;cursor:pointer}',
-    'button[aria-pressed="true"],button.primary{color:var(--sa-on-accent);background:var(--sa-accent)}',
-    'button[aria-pressed="true"]{font-weight:700}',
-    'button[aria-disabled="true"]{opacity:.6;cursor:not-allowed}',
-    'button:focus-visible,textarea:focus-visible,.log:focus-visible,a:focus-visible{outline:3px solid var(--sa-accent);outline-offset:2px}',
-    '.log{display:flex;flex:1 1 auto;flex-direction:column;gap:.75rem;min-height:4rem;padding:.25rem;overflow-y:auto}',
-    '.inline .log{flex:initial;min-height:8rem;max-height:min(60vh,28rem)}',
-    '.msg{max-width:92%;padding:.625rem .875rem;border-radius:.75rem;overflow-wrap:anywhere}',
-    '.msg p{margin:0}',
-    '.user{align-self:flex-end;color:var(--sa-on-accent);background:var(--sa-accent)}',
-    '.bot{align-self:flex-start;color:var(--sa-fg);background:var(--sa-bot)}',
-    '.bot.err{border:2px solid var(--sa-error)}',
-    '.bot.agent{border:2px solid var(--sa-accent)}',
-    '.who{display:block;font-size:.9375rem;font-weight:700}',
-    '.slabel{margin:.5rem 0 0;font-size:.9375rem;font-weight:600}',
-    '.links{margin:0;padding:0;list-style:none;font-size:.9375rem}',
-    '.links a{color:var(--sa-accent);text-decoration:underline}',
-    '.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}',
-    '.status{min-height:1.5rem;margin:0;color:var(--sa-muted)}',
-    '.form{display:flex;flex:0 0 auto;flex-direction:column;gap:.5rem}',
-    'label{font-weight:600}',
-    'textarea{width:100%;min-height:3.5rem;padding:.625rem;font:inherit;color:var(--sa-fg);background:var(--sa-bg);border:2px solid var(--sa-border);border-radius:.5rem;resize:vertical}',
-    '.speech-tools{display:flex;flex-wrap:wrap;align-items:end;gap:.5rem}',
-    '.speech-tools label{display:flex;flex-direction:column;gap:.2rem;font-size:.875rem}',
-    '.speech-tools select{min-height:2.75rem;padding:.4rem .55rem;font:inherit;color:var(--sa-fg);background:var(--sa-bg);border:2px solid var(--sa-border);border-radius:.5rem}',
-    '.speech-tools select:focus-visible{outline:3px solid var(--sa-accent);outline-offset:2px}',
-    '.hint{margin:0;font-size:.875rem;color:var(--sa-muted)}',
-    '.row{display:flex;flex-wrap:wrap;gap:.5rem}',
-    '.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
-    '@media(max-width:480px){:host:not([mode="inline"]){right:.5rem;bottom:.5rem;max-width:calc(100vw - 1rem)}:host:not([mode="inline"]) .box{height:calc(100vh - 5rem);max-height:calc(100vh - 5rem);padding:.75rem}}',
-    '@media (forced-colors:active){button,textarea,.msg,.mode{border:1px solid CanvasText}}',
+    ':host{all:initial;position:fixed;right:1rem;bottom:1rem;z-index:2147483000;display:block;width:min(30rem,calc(100vw - 2rem));max-width:100%;font-family:system-ui,-apple-system,"Segoe UI","Noto Sans Ethiopic","Nyala","Abyssinica SIL",sans-serif;font-size:16px;line-height:1.55;--sa-bg:#ffffff;--sa-fg:#0f172a;--sa-muted:#475569;--sa-accent:#0b5cad;--sa-accent-strong:#084a8a;--sa-on-accent:#ffffff;--sa-bot:#eef2f7;--sa-user:#0b5cad;--sa-on-user:#ffffff;--sa-border:#64748b;--sa-line:#cbd5e1;--sa-error:#b3261e;--sa-focus:#0b5cad;--sa-btn-bg:#ffffff;--sa-btn-fg:#0b5cad;--sa-btn-border:#0b5cad;--sa-radius:14px;--sa-shadow:0 10px 30px rgba(0,0,0,.22)}',
+    ':host([theme="dark"]){--sa-bg:#0f151b;--sa-fg:#f1f5f9;--sa-muted:#cbd5e1;--sa-accent:#7cb7ff;--sa-accent-strong:#a7cdfd;--sa-on-accent:#0a1a2f;--sa-bot:#1b242d;--sa-user:#7cb7ff;--sa-on-user:#0a1a2f;--sa-border:#7b8794;--sa-line:#33404c;--sa-error:#ffb4ab;--sa-focus:#7cb7ff;--sa-btn-bg:#0f151b;--sa-btn-fg:#7cb7ff;--sa-btn-border:#7cb7ff;--sa-shadow:0 10px 30px rgba(0,0,0,.55)}',
+    '@media (prefers-color-scheme:dark){:host(:not([theme="light"])){--sa-bg:#0f151b;--sa-fg:#f1f5f9;--sa-muted:#cbd5e1;--sa-accent:#7cb7ff;--sa-accent-strong:#a7cdfd;--sa-on-accent:#0a1a2f;--sa-bot:#1b242d;--sa-user:#7cb7ff;--sa-on-user:#0a1a2f;--sa-border:#7b8794;--sa-line:#33404c;--sa-error:#ffb4ab;--sa-focus:#7cb7ff;--sa-btn-bg:#0f151b;--sa-btn-fg:#7cb7ff;--sa-btn-border:#7cb7ff;--sa-shadow:0 10px 30px rgba(0,0,0,.55)}}',
+    ':host([mode="inline"]){position:static;width:100%;max-width:100%;z-index:auto}',
+    '*,*::before,*::after{box-sizing:border-box}', '[hidden]{display:none !important}',
+    '.shell{display:flex;flex-direction:column;align-items:flex-end;gap:.6rem;width:100%;position:relative}',
+    ':host:not([mode="inline"]) .box{position:absolute;right:0;bottom:4.4rem}',
+    '.launcher{display:flex;align-items:center;justify-content:center;width:3.5rem;height:3.5rem;min-width:3.5rem;min-height:3.5rem;padding:0;border:0;border-radius:50%;background:var(--sa-accent);color:var(--sa-on-accent);box-shadow:var(--sa-shadow);cursor:pointer;transition:transform .15s ease,background .15s ease}',
+    '.launcher:hover{background:var(--sa-accent-strong)}', '.launcher:active{transform:scale(.96)}',
+    '.launcher svg{width:1.6rem;height:1.6rem;display:block}', '.launcher-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}',
+    '.box{display:flex;flex-direction:column;gap:.6rem;width:100%;height:min(46rem,calc(100vh - 5rem));max-height:calc(100vh - 5rem);padding:1rem;background:var(--sa-bg);color:var(--sa-fg);border:1.5px solid var(--sa-border);border-radius:var(--sa-radius);box-shadow:var(--sa-shadow);overflow:hidden}',
+    ':host([mode="inline"]) .box{position:static;height:auto;max-height:none;box-shadow:none}',
+    '.top{display:flex;align-items:center;gap:.5rem;padding-bottom:.55rem;border-bottom:1px solid var(--sa-line)}',
+    '.title{margin:0;font-size:1.05rem;font-weight:800;letter-spacing:-.01em;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}',
+    '.lang-toggle{display:inline-flex;align-items:center;gap:.35rem;min-height:2.75rem;padding:.35rem .7rem;font:inherit;font-size:.95rem;font-weight:700;color:var(--sa-btn-fg);background:var(--sa-btn-bg);border:1.5px solid var(--sa-btn-border);border-radius:999px;cursor:pointer;white-space:nowrap}',
+    '.lang-toggle:hover{background:var(--sa-bot);color:var(--sa-accent-strong)}', '.lang-toggle svg{width:1.05rem;height:1.05rem;display:block;flex:0 0 auto}', '.lang-toggle .lang-code{letter-spacing:.02em}',
+    '.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:2.75rem;height:2.75rem;padding:0;border:1.5px solid transparent;border-radius:.6rem;background:transparent;color:var(--sa-btn-fg);cursor:pointer}',
+    '.icon-btn:hover{background:var(--sa-bot);border-color:var(--sa-btn-border)}', '.icon-btn svg{width:1.2rem;height:1.2rem;display:block}',
+    'button{font:inherit;color:var(--sa-btn-fg);background:var(--sa-btn-bg)}',
+    '.actions button, .form button{min-height:2.75rem;padding:.5rem .9rem;font-size:.95rem;font-weight:600;color:var(--sa-btn-fg);background:var(--sa-btn-bg);border:1.5px solid var(--sa-btn-border);border-radius:.6rem;cursor:pointer}',
+    '.actions button:hover, .form button:hover{background:var(--sa-bot);color:var(--sa-accent-strong)}',
+    '.actions button.primary, .form button.primary{color:var(--sa-on-accent);background:var(--sa-accent);border-color:var(--sa-accent)}',
+    '.actions button.primary:hover, .form button.primary:hover{background:var(--sa-accent-strong);border-color:var(--sa-accent-strong);color:var(--sa-on-accent)}',
+    '.actions button[aria-pressed="true"], .form button[aria-pressed="true"]{color:var(--sa-on-accent);background:var(--sa-accent);border-color:var(--sa-accent)}',
+    '.actions button[aria-disabled="true"], .form button[aria-disabled="true"]{opacity:.55;cursor:not-allowed}',
+    'button:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible,.log:focus-visible{outline:3px solid var(--sa-focus);outline-offset:2px}',
+    'button:focus:not(:focus-visible),select:focus:not(:focus-visible),textarea:focus:not(:focus-visible),a:focus:not(:focus-visible){outline:none}',
+    '.mode{margin:0;padding:.45rem .7rem;font-size:.9rem;font-weight:700;color:var(--sa-on-accent);background:var(--sa-accent);border-radius:.5rem;text-align:center}',
+    '.log{display:flex;flex:1 1 auto;flex-direction:column;gap:.7rem;min-height:5rem;padding:.2rem;overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain}',
+    ':host([mode="inline"]) .log{flex:0 1 auto;min-height:9rem;max-height:min(60vh,28rem)}',
+    '.msg{max-width:88%;padding:.7rem .9rem;border-radius:1rem;overflow-wrap:anywhere;word-break:break-word}', '.msg p{margin:0}',
+    '.user{align-self:flex-end;color:var(--sa-on-user);background:var(--sa-user);border-bottom-right-radius:.25rem}',
+    '.bot{align-self:flex-start;color:var(--sa-fg);background:var(--sa-bot);border-bottom-left-radius:.25rem}',
+    '.bot.err{border:2px solid var(--sa-error)}', '.bot.agent{border:2px solid var(--sa-accent)}',
+    '.who{display:block;font-size:.85rem;font-weight:700;opacity:.85;margin-bottom:.15rem}', '.slabel{margin:.5rem 0 .15rem;font-size:.85rem;font-weight:700}',
+    '.links{margin:0;padding:0;list-style:none;font-size:.9rem}', '.links li{margin:.15rem 0}', '.links a{color:var(--sa-accent);text-decoration:underline;text-underline-offset:.15em;font-weight:650}',
+    '.actions{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}', '.status{min-height:1.4rem;margin:0;color:var(--sa-muted);font-size:.9rem}',
+    '.form{display:flex;flex:0 0 auto;flex-direction:column;gap:.4rem;padding-top:.4rem;border-top:1px solid var(--sa-line)}', 'label{font-size:.95rem;font-weight:700}',
+    'textarea{width:100%;min-height:3.25rem;max-height:10rem;padding:.6rem .7rem;font:inherit;color:var(--sa-fg);background:var(--sa-bg);border:1.5px solid var(--sa-border);border-radius:.6rem;resize:vertical}',
+    '.hint{margin:0;font-size:.82rem;color:var(--sa-muted);line-height:1.4}', '.row{display:flex;flex-wrap:wrap;gap:.4rem}', '.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
+    '@media (forced-colors:active){button,textarea,.msg,.mode,.lang-toggle{border:1px solid CanvasText}}',
+    '@media(max-width:480px){:host:not([mode="inline"]){right:.5rem;bottom:.5rem;width:calc(100vw - 1rem)}:host:not([mode="inline"]) .box{height:calc(100vh - 5rem);max-height:calc(100vh - 5rem);padding:.75rem}}',
+    '@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}',
     '</style>',
     '<div class="shell" id="shell">',
-    '<button type="button" class="launcher" id="launcher" aria-controls="box" aria-expanded="false"><svg class="launcher-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v11H9l-5 3v-14z"></path></svg></button>',
-    '<section class="box" id="box" aria-labelledby="h" hidden>',
-    '<header class="top">',
-    '<h2 class="title" id="h" data-k="heading"></h2>',
-    '<button type="button" class="close" id="close" data-k="closeChat"></button>',
-    '<div class="langs" id="langs" role="group">',
-    '<button type="button" data-l="en" lang="en" aria-pressed="false">English</button>',
-    '<button type="button" data-l="am" lang="am" aria-pressed="false">አማርኛ</button>',
-    '<button type="button" data-l="ti" lang="ti">ትግርኛ</button>',
-    '<button type="button" data-l="om" lang="om">Afaan Oromo</button>',
-    '<button type="button" data-l="so" lang="so">Soomaali</button>',
-    '<button type="button" data-l="ar" lang="ar">العربية</button>',
-    '</div>',
-    '</header>',
-    '<p class="mode" id="mode" data-k="humanMode" hidden></p>',
-    '<div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></div>',
-    '<p class="status" id="status" role="status" aria-live="polite"></p>',
-    '<form class="form" id="form" novalidate>',
-    '<label for="q" data-k="label"></label>',
-    '<textarea id="q" rows="2" maxlength="1000" dir="auto" enterkeyhint="send" aria-describedby="hint"></textarea>',
-    '<p class="hint" id="hint" data-k="hint"></p>',
-    '<div class="speech-tools">',
-    '<label for="speechLang" data-k="speechLanguage"></label>',
-    '<select id="speechLang" aria-describedby="speechHint">',
-    '<option value="en" lang="en">English</option><option value="am" lang="am">አማርኛ</option><option value="ti" lang="ti">ትግርኛ</option><option value="om" lang="om">Afaan Oromo</option><option value="so" lang="so">Soomaali</option><option value="ar" lang="ar">العربية</option>',
-    '</select>',
-    '<p class="hint" id="speechHint" data-k="speechHint"></p>',
-    '</div>',
-    '<div class="row">',
-    '<button type="button" id="mic" data-k="mic" aria-pressed="false"></button>',
-    '<button type="button" id="cancelMic" data-k="cancelRecording" hidden></button>',
-    '<button type="submit" id="send" class="primary" data-k="send"></button>',
-    '<button type="button" id="endHuman" data-k="humanEnd" hidden></button>',
-        '<button type="button" id="shareBtn" data-k="shareScreen" hidden></button>',
-    '<button type="button" id="accBtn" data-k="accommodation"></button>',
-    '</div>',
-    '</form>',
-    '</section>',
+      '<section class="box" id="box" aria-labelledby="h" hidden>',
+        '<header class="top">',
+          '<h2 class="title" id="h" data-k="heading"></h2>',
+          '<button type="button" class="lang-toggle" id="langToggle" aria-haspopup="true">',
+            '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>',
+            '<span class="lang-code" id="langCode">EN</span>',
+          '</button>',
+          '<button type="button" class="icon-btn" id="close" data-k="closeChat" aria-label="Close chat">',
+            '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+          '</button>',
+        '</header>',
+        '<p class="mode" id="mode" data-k="humanMode" hidden></p>',
+        '<div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></div>',
+        '<p class="status" id="status" role="status" aria-live="polite"></p>',
+        '<form class="form" id="form" novalidate>',
+          '<label for="q" data-k="label"></label>',
+          '<textarea id="q" rows="2" maxlength="1000" dir="auto" enterkeyhint="send" aria-describedby="hint"></textarea>',
+          '<p class="hint" id="hint" data-k="hint"></p>',
+          '<div class="row">',
+            '<button type="button" id="mic" data-k="mic" aria-pressed="false"></button>',
+            '<button type="button" id="cancelMic" data-k="cancelRecording" hidden></button>',
+            '<button type="submit" id="send" class="primary" data-k="send"></button>',
+            '<button type="button" id="endHuman" data-k="humanEnd" hidden></button>',
+            '<button type="button" id="shareBtn" data-k="shareScreen" hidden></button>',
+          '</div>',
+        '</form>',
+      '</section>',
+      '<button type="button" class="launcher" id="launcher" aria-controls="box" aria-expanded="false">',
+        '<span class="launcher-label" data-k="openChat"></span>',
+        '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v11H9l-5 3v-14z"/></svg>',
+      '</button>',
     '</div>'
   ].join('');
 
@@ -396,7 +187,7 @@
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   class InclusiveAssistant extends HTMLElement {
-    static get observedAttributes() { return ['lang', 'heading', 'mode']; }
+    static get observedAttributes() { return ['lang', 'heading', 'mode', 'theme']; }
 
     constructor() {
       super();
@@ -418,7 +209,6 @@
       this._speechReview = null;
       this._speechAudio = null;
       this._human = null;
-      this._pendingAccommodation = false;
       this._stream = null;
       this._pc = null;
       this.attachShadow({ mode: 'open' });
@@ -439,8 +229,7 @@
       this._stopSpeak();
       this._stopGeneratedAudio();
       this._stopShare();
-      this._human = null; // stops the polling loop
-      this._pendingAccommodation = false;
+      this._human = null;
     }
 
     attributeChangedCallback(name) {
@@ -449,17 +238,13 @@
       if (name === 'mode') { this._applyMode(); }
     }
 
-    /* Public: ask a question from code, e.g. el.ask('How do I check my score?') */
     ask(text) {
       this._q.value = String(text || '');
       return this._send();
     }
 
     setCourseContext(context) {
-      if (context === null || context === undefined) {
-        this._courseContext = null;
-        return;
-      }
+      if (context === null || context === undefined) { this._courseContext = null; return; }
       if (!context || typeof context !== 'object' || typeof context.text !== 'string' || !context.text.trim()) {
         throw new TypeError('Course context must include non-empty text.');
       }
@@ -484,15 +269,11 @@
     }
 
     _emit(name, detail, cancelable) {
-      var ev = new CustomEvent('inclusive-assistant:' + name, {
-        detail: detail, bubbles: true, composed: true, cancelable: !!cancelable
-      });
+      var ev = new CustomEvent('inclusive-assistant:' + name, { detail: detail, bubbles: true, composed: true, cancelable: !!cancelable });
       this.dispatchEvent(ev);
-      var legacyEvent = new CustomEvent('savanna-assistant:' + name, {
-        detail: detail, bubbles: true, composed: true, cancelable: !!cancelable
-      });
-      this.dispatchEvent(legacyEvent);
-      if (legacyEvent.defaultPrevented) { ev.preventDefault(); }
+      var legacy = new CustomEvent('savanna-assistant:' + name, { detail: detail, bubbles: true, composed: true, cancelable: !!cancelable });
+      this.dispatchEvent(legacy);
+      if (legacy.defaultPrevented) { ev.preventDefault(); }
       return ev;
     }
 
@@ -500,8 +281,6 @@
       return (this.getAttribute('api-url') || SCRIPT_ORIGIN || window.location.origin).replace(/\/+$/, '');
     }
 
-    // text/plain keeps POSTs without a token "simple" cross-site requests (no CORS
-    // preflight), which saves a round trip on 3G. The API parses JSON regardless.
     async _call(method, path, body, token, timeoutMs) {
       var ctrl = new AbortController();
       var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 25000);
@@ -526,6 +305,16 @@
       }
     }
 
+    _cycleLanguage(direction) {
+      var current = this._lang();
+      var i = LANG_CYCLE.indexOf(current);
+      if (i < 0) { i = 0; }
+      var next = LANG_CYCLE[(i + (direction || 1) + LANG_CYCLE.length) % LANG_CYCLE.length];
+      this._stopMic();
+      this._stopSpeak();
+      this.setAttribute('lang', next);
+    }
+
     _build() {
       var self = this;
       var r = this.shadowRoot;
@@ -533,21 +322,28 @@
       this._shell = r.getElementById('shell');
       this._launcher = r.getElementById('launcher');
       this._closeBtn = r.getElementById('close');
+      this._langToggle = r.getElementById('langToggle');
+      this._langCode = r.getElementById('langCode');
       this._box = r.getElementById('box');
       this._log = r.getElementById('log');
       this._status = r.getElementById('status');
       this._q = r.getElementById('q');
       this._mic = r.getElementById('mic');
       this._cancelMic = r.getElementById('cancelMic');
-      this._speechLang = r.getElementById('speechLang');
       this._sendBtn = r.getElementById('send');
       this._endBtn = r.getElementById('endHuman');
       this._shareBtn = r.getElementById('shareBtn');
-      this._accBtn = r.getElementById('accBtn');
       this._modeEl = r.getElementById('mode');
 
       this._launcher.addEventListener('click', function () { self._setOpen(true, true); });
       this._closeBtn.addEventListener('click', function () { self._setOpen(false, true); });
+
+      this._langToggle.addEventListener('click', function (e) { self._cycleLanguage(e.shiftKey ? -1 : 1); });
+      this._langToggle.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); self._cycleLanguage(-1); }
+        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self._cycleLanguage(1); }
+      });
+
       r.getElementById('form').addEventListener('submit', function (e) {
         e.preventDefault();
         self._send();
@@ -562,10 +358,9 @@
       this._cancelMic.addEventListener('click', function () { self._cancelRecording(); });
       this._endBtn.addEventListener('click', function () {
         self._endHuman(true, 'humanEndedYou');
-        self._q.focus();
-      });
+        this._q.focus();
+      }.bind(this));
       this._shareBtn.addEventListener('click', function () { self._toggleShare(); });
-      this._accBtn.addEventListener('click', function () { self._promptAccommodation(); });
       r.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
           if (self._open && self.getAttribute('mode') !== 'inline') {
@@ -575,19 +370,6 @@
           self._stopMic();
           self._stopSpeak();
         }
-      });
-      Array.prototype.forEach.call(r.querySelectorAll('[data-l]'), function (b) {
-        b.addEventListener('click', function () {
-          self._stopMic();
-          self._stopSpeak();
-          self.setAttribute('lang', b.getAttribute('data-l'));
-        });
-      });
-      this._speechLang.value = this._lang();
-      this._speechLang.addEventListener('change', function () {
-        self._cancelRecording();
-        self._speechReview = null;
-        self._speechLang.setAttribute('lang', self._speechLang.value);
       });
       r.addEventListener('click', function (event) {
         var target = event.target;
@@ -617,15 +399,14 @@
       this._box.setAttribute('lang', lang);
       this._box.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
       this._fill(r);
+      this._langCode.textContent = LANG_SHORT[lang] || lang.toUpperCase();
+      this._langToggle.setAttribute('lang', lang);
+      this._langToggle.setAttribute('aria-label', 'Change language. Current: ' + (STRINGS[lang].langGroup || lang) + '. Press Enter for next, Shift and Enter for previous.');
       this._launcher.setAttribute('aria-label', this._t('openChat'));
       this._closeBtn.setAttribute('aria-label', this._t('closeChat'));
       var h = this.getAttribute('heading');
       if (h) { r.getElementById('h').textContent = h; }
       this._log.setAttribute('aria-label', STRINGS[lang].conversation);
-      r.getElementById('langs').setAttribute('aria-label', STRINGS[lang].langGroup);
-      Array.prototype.forEach.call(r.querySelectorAll('[data-l]'), function (b) {
-        b.setAttribute('aria-pressed', b.getAttribute('data-l') === lang ? 'true' : 'false');
-      });
     }
 
     _applyMode() {
@@ -654,7 +435,6 @@
       clearTimeout(this._statusTimer);
       s.textContent = '';
       if (!text) { return; }
-      // Clear, then set: makes screen readers announce repeated messages again.
       this._statusTimer = setTimeout(function () { s.textContent = text; }, 60);
     }
 
@@ -672,8 +452,6 @@
       return b.replace(/\/+$/, '') + (u.charAt(0) === '/' ? u : '/' + u);
     }
 
-    /* opts: lang, key, welcome, error, read(false hides), escalate, question, links[], linksLabel,
-             who (string key), showWho, actions[{key, primary, onClick}] */
     _addMessage(role, text, opts) {
       opts = opts || {};
       var self = this;
@@ -811,7 +589,7 @@
       this._cancelRecording();
       this._speechReview = null;
       this._stopSpeak();
-      if (this._pendingAccommodation) { return this._startAccommodation(text); }
+      
       if (this._human) { return this._sendHuman(text); }
 
       var self = this;
@@ -858,11 +636,9 @@
       }
     }
 
-    /* ---------- human help ---------- */
     _escalate(question) {
       var self = this;
       var ev = this._emit('escalate', { question: question, transcript: this._history.slice() }, true);
-      // A host page can call event.preventDefault() to handle human help itself.
       if (ev.defaultPrevented) { return; }
       if (this._human) { this._setStatus(this._t('humanAlready')); this._q.focus(); return; }
       var a = this._addMessage('bot', '', {
@@ -907,7 +683,6 @@
       }
     }
 
-    /* ---------- interview accommodations (reuses the human-help channel) ---------- */
     _promptAccommodation() {
       if (this._human) { this._setStatus(this._t('humanAlready')); this._q.focus(); return; }
       this._pendingAccommodation = true;
@@ -941,7 +716,6 @@
     _setHumanUi(on) {
       this._endBtn.hidden = !on;
       this._modeEl.hidden = !on;
-      this._accBtn.hidden = on;
       if (!on) { this._shareBtn.hidden = true; }
     }
 
@@ -977,11 +751,6 @@
       }
     }
 
-    // Long polling: the server holds each request up to 20 s until something
-    // new arrives, so a 3G phone makes about 3 requests a minute, not 30.
-    // Works the same way whether this._human came from /v1/handoff (a normal
-    // escalation) or /v1/accommodations (an accommodation request), since
-    // both create a session in the same store.
     async _pollHuman(h) {
       var fails = 0;
       while (this._human === h && this.isConnected) {
@@ -990,8 +759,6 @@
           fails = 0;
           if (this._human !== h) { return; }
           var self = this;
-          // The "Share my screen" button only appears once a person has
-          // actually joined; it must never be offered before that.
           this._shareBtn.hidden = d.status !== 'active';
           (d.messages || []).forEach(function (m) {
             h.after = Math.max(h.after, m.id);
@@ -1009,9 +776,7 @@
       }
     }
 
-    /* ---------- screen sharing (learner-initiated, native browser controls) ---------- */
     async _onRemoteSignal(m) {
-      // Only the person's own signals matter; the learner's own echo is ignored.
       if (m.from !== 'agent' || !this._pc) { return; }
       var sig = m.data || {};
       try {
@@ -1035,8 +800,6 @@
       try {
         var stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         this._stream = stream;
-        // The browser's own "Stop sharing" control (in its sharing indicator)
-        // ends the track; this cleans up our side the same way our own button does.
         stream.getVideoTracks()[0].addEventListener('ended', function () {
           if (self._stream === stream) { self._stopShare('shareStoppedDevice'); }
         });
@@ -1077,11 +840,9 @@
       }
       this._shareBtn.setAttribute('data-k', 'shareScreen');
       this._fill(this.shadowRoot);
-      
       if (key) { this._setStatus(this._t(key)); }
     }
 
-    /* ---------- voice input ---------- */
     _stopMic() {
       if (this._rec) { try { this._rec.stop(); } catch (e) { /* already stopped */ } }
       if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
@@ -1260,8 +1021,8 @@
     async _transcribe(blob) {
       this._setStatus(this._t('transcribing'));
       var body = new FormData();
-      body.append('language', this._speechLang.value);
       var extension = blob.type.indexOf('mp4') >= 0 ? 'm4a' : blob.type.indexOf('wav') >= 0 ? 'wav' : 'webm';
+      body.append('language', this._lang());
       body.append('audio', blob, 'recording.' + extension);
       var controller = new AbortController();
       var timer = setTimeout(function () { controller.abort(); }, 90000);
@@ -1273,7 +1034,7 @@
           throw Object.assign(new Error(code || 'speech_failed'), { code: code, status: response.status });
         }
         this._q.value = data.text;
-        this._speechReview = { original: data.text, language: data.language || this._speechLang.value };
+        this._speechReview = { original: data.text, language: data.language || this._lang() };
         this._setStatus(this._t('speechReady'));
         this._q.focus();
       } catch (e) {
@@ -1287,7 +1048,6 @@
       }
     }
 
-    /* ---------- read aloud ---------- */
     _pickVoice(lang) {
       var voices = [];
       try { voices = window.speechSynthesis.getVoices() || []; } catch (e) { voices = []; }
@@ -1316,7 +1076,6 @@
       this._stopMic();
 
       var voice = this._pickVoice(lang);
-      // Never read Amharic text with an English voice: it would be gibberish.
       if (!voice && lang !== 'en') { this._setStatus(this._t('ttsNoVoice')); return; }
 
       var u = new window.SpeechSynthesisUtterance(text.replace(/\s*\[\d+\]/g, ''));
