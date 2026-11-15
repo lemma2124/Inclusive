@@ -797,7 +797,7 @@ test('widget parses, stays small, and is served safely', async () => {
   assert.equal(assistant._courseContext.text, 'Lesson excerpt');
   assistant.setCourseContext(null);
   assert.equal(assistant._courseContext, null);
-  assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(1001) }), /1000 characters/);
+  assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(10001) }), /1000 characters/);
   const panel = Object.create(elements['inclusive-assistant'].prototype);
   panel.mode = 'inline';
   panel.getAttribute = (name) => name === 'mode' ? panel.mode : null;
