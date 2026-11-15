@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: savanna-assistant
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: AI_PROVIDERS
+        value: gemini,ollama,offline
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: RATE_LIMIT_PER_MIN
+        value: "30"
+      - key: HANDOFF_RATE_LIMIT_PER_MIN
+        value: "5"
+      - key: AGENT_KEY
+        generateValue: true
+      - key: INTERNAL_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ADDIS_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: SMS_INBOUND_KEY
+        sync: false
+      - key: SMS_PROVIDER
+        value: console
+      - key: SMS_WEBHOOK_URL
+        sync: false
+      - key: SMS_WEBHOOK_KEY
+        sync: false

@@ -4,18 +4,7 @@
 
 import { detectChannelLanguage, parseChannelLanguage } from '../api/sms/language.js';
 import { applyTelegramLanguage, parseTelegramInput } from './commands.js';
-
-try { process.loadEnvFile('.env'); } catch { /* .env is optional */ }
-
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const API_URL = (process.env.API_URL || 'http://localhost:8787').replace(/\/+$/, '');
-const INTERNAL_KEY = process.env.INTERNAL_KEY || '';
-const TG = `https://api.telegram.org/bot${TOKEN}`;
-
-if (!TOKEN) {
-    console.error('TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env, add your token, then run: npm run bot');
-    process.exit(1);
-}
+import { pathToFileURL } from 'node:url';
 
 const STRINGS = {
     en: {
