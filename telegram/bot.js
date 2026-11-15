@@ -7,7 +7,7 @@ import { translateSmsMessage } from '../api/sms/session.js';
 import { safeEqual } from '../api/lib/auth.js';
 import { createAddisSpeech } from '../api/ai/addis-speech.js';
 import { MAX_SPEECH_BYTES, MAX_SPEECH_SECONDS, validateSpeechAudio } from '../api/speech/upload.js';
-import { applyTelegramLanguage, parseTelegramInput } from './commands.js';
+import { parseTelegramInput } from './commands.js';
 import { pathToFileURL } from 'node:url';
 
 export const BOT_ENV = {
@@ -64,12 +64,19 @@ const STRINGS = {
         audioTooLarge: 'That audio file is too large. Send a recording under 8 MB.',
         audioTooLong: 'That recording is too long. Keep it to 30 seconds or less.',
             speechRateLimited: 'Too many speech requests. Please wait a minute and try again.',
+            speechTooLong: 'This answer is too long to speak in one clip. The complete answer is available as text.',
         transcriptPrefix: 'I heard:',
+        transcriptConfirm: 'Review the transcript, then submit it as your question, correct it, or cancel.',
+        transcriptEditPrompt: 'Send the corrected transcript as a text message. You can still cancel with /cancel.',
+        transcriptExpired: 'That transcript expired. Please send the voice message again.',
+        transcriptCancelled: 'Transcript canceled; no question was sent.',
+        transcriptSubmitButton: 'Submit question', transcriptEditButton: 'Edit transcript', transcriptCancelButton: 'Cancel',
         voiceMode: 'Voice replies enabled where a speech voice is available. Use /text to switch back.',
         textMode: 'Text replies enabled.',
         jobsSubscribed: 'You are now subscribed to job alerts here. Send /unsubscribe to stop.',
         jobsUnsubscribed: 'You will no longer receive job alerts.',
-        accommodationPrompt: 'Please describe what you need for your interview (for example: more time, a sign language interpreter, or a quiet room). You do not need to state a medical condition. Send /cancel to stop.',
+        accommodationPrompt: 'General guidance: ask the interviewer or employer early and describe the change that would help, such as extra time, an interpreter, or a quiet room. This bot cannot guarantee or arrange an accommodation. To request human help, describe what you need; you do not need to state a medical condition. Send /cancel to stop.',
+        jobsDisclaimer: 'These are locally maintained career resources, not verified live vacancies. Check the organization and current dates before applying.',
         accommodationCancelled: 'OK, no request was sent.',
         accommodationWaiting: 'Your request was sent to a person. They may reply here. Send /end to stop.'
     },
@@ -108,13 +115,20 @@ const STRINGS = {
         audioTooLarge: 'የድምፅ ፋይሉ በጣም ትልቅ ነው። ከ8 MB በታች ይላኩ።',
         audioTooLong: 'ድምፁ በጣም ረጅም ነው። 30 ሰከንድ ወይም ከዚያ በታች ይላኩ።',
             speechRateLimited: 'ብዙ የድምፅ ጥያቄዎች ተልከዋል። እባክዎ ቆይተው ይሞክሩ።',
+            speechTooLong: 'ይህ መልስ በአንድ የድምፅ ቅጂ ለማንበብ ረጅም ነው። ሙሉውን መልስ በጽሑፍ ይመልከቱ።',
             speechRateLimited: 'rateLimited',
         transcriptPrefix: 'የሰማሁት፦',
+        transcriptConfirm: 'ጽሑፉን ይመልከቱ፤ እንደ ጥያቄ ይላኩት፣ ያስተካክሉት ወይም ይሰርዙት።',
+        transcriptEditPrompt: 'የተስተካከለውን ጽሑፍ በመልዕክት ይላኩ። ለመሰረዝ /cancel ይጠቀሙ።',
+        transcriptExpired: 'ይህ ጽሑፍ ጊዜው አልፎታል። እባክዎ ድምፁን እንደገና ይላኩ።',
+        transcriptCancelled: 'ጽሑፉ ተሰርዟል፤ ምንም ጥያቄ አልተላከም።',
+        transcriptSubmitButton: 'ጥያቄ ላክ', transcriptEditButton: 'ጽሑፉን አስተካክል', transcriptCancelButton: 'ሰርዝ',
         voiceMode: 'ድምፅ መልስ የሚደግፉ ቋንቋዎች ላይ ተነቅቷል። ወደ /text ለመመለስ /text ይላኩ።',
         textMode: 'በጽሑፍ መልስ ተመርጧል።',
         jobsSubscribed: 'በዚህ ለስራ ማስታወቂያዎች ተመዝግበዋል። ለማቆም /unsubscribe ይላኩ።',
         jobsUnsubscribed: 'ከዚህ በኋላ የስራ ማስታወቂያ አይደርስዎትም።',
-        accommodationPrompt: 'ለቃለ መጠይቅ ምን እንደሚያስፈልግዎ ይግለጹ (ለምሳሌ፦ ተጨማሪ ጊዜ፣ የምልክት ቋንቋ አስተርጓሚ፣ ወይም ጸጥ ያለ ክፍል)። የህክምና ሁኔታ መግለጽ አያስፈልግም። ለመሰረዝ /cancel ይላኩ።',
+        accommodationPrompt: 'አጠቃላይ ምክር፦ አስቀድመው ከቀጣሪው ይጠይቁና የሚረዳውን ለውጥ ይግለጹ፣ ለምሳሌ ተጨማሪ ጊዜ፣ አስተርጓሚ ወይም ጸጥ ያለ ክፍል። ይህ ቦት ድጋፍን ማረጋገጥ ወይም ማዘጋጀት አይችልም። ሰው ለማግኘት ፍላጎትዎን ይግለጹ፤ የህክምና ሁኔታ መናገር አያስፈልግም። /cancel ለመሰረዝ ይላኩ።',
+        jobsDisclaimer: 'እነዚህ በአካባቢው የተዘጋጁ የሥራ መረጃዎች ናቸው፤ የተረጋገጡ የአሁን ክፍት ሥራዎች አይደሉም። ከማመልከትዎ በፊት ድርጅቱንና ቀኖቹን ያረጋግጡ።',
         accommodationCancelled: 'እሺ፣ ምንም ጥያቄ አልተላከም።',
         accommodationWaiting: 'ጥያቄዎ ለሰው ተልኳል። እዚህ ሊመልስልዎት ይችላል። ለማቆም /end ይላኩ።'
     }
@@ -177,6 +191,29 @@ const t = (s, key) => {
     return (smsKey && translateSmsMessage(s.lang, smsKey)) || STRINGS.en[key] || '';
 };
 
+function setLanguage(s, language) {
+    if (s.lang !== language) s.history = [];
+    s.lang = language;
+    s.languageExplicit = true;
+}
+
+export function splitTelegramText(value, maxLength = 3900) {
+    const text = String(value ?? '');
+    if (!text.trim()) return [];
+    if (!Number.isInteger(maxLength) || maxLength < 1) throw new RangeError('maxLength must be a positive integer');
+    const chunks = [];
+    let remaining = text;
+    while (remaining.length > maxLength) {
+        let boundary = Math.max(remaining.lastIndexOf('\n', maxLength - 1), remaining.lastIndexOf(' ', maxLength - 1));
+        if (boundary < Math.floor(maxLength / 2)) boundary = maxLength;
+        else boundary += 1;
+        chunks.push(remaining.slice(0, boundary));
+        remaining = remaining.slice(boundary);
+    }
+    if (remaining.trim()) chunks.push(remaining);
+    return chunks;
+}
+
 function createRuntimeContext({
     token = TELEGRAM_BOT_TOKEN,
     apiUrl = API_URL,
@@ -204,6 +241,7 @@ function createRuntimeContext({
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(params || {})
             });
+
             const data = await res.json().catch(() => null);
             if (!res.ok || !data || !data.ok) {
                 console.error(`Telegram ${method} failed.`);
@@ -216,7 +254,19 @@ function createRuntimeContext({
         }
     }
 
-    const send = (chatId, text, extra) => tg('sendMessage', { chat_id: chatId, text, ...extra });
+    async function send(chatId, text, extra) {
+        const chunks = splitTelegramText(text);
+        let result = true;
+        for (let index = 0; index < chunks.length; index += 1) {
+            result = await tg('sendMessage', {
+                chat_id: chatId,
+                text: chunks[index],
+                ...(index === chunks.length - 1 ? extra : undefined)
+            });
+            if (!result) throw Object.assign(new Error('Telegram message delivery failed.'), { code: 'telegram_delivery_failed' });
+        }
+        return result;
+    }
 
     async function api(method, path, body, bearerToken) {
         if (apiCall) return apiCall(method, path, body, bearerToken);
@@ -312,7 +362,7 @@ function createRuntimeContext({
     }
 
     return {
-        api, fetchImpl, limited, session, send, speech, tg,
+        api, fetchImpl, limited, session, send, speech, tg, now,
         speechLimited: (chatId) => speechLimited(speechLimits, chatId),
         ttsLimited: (chatId) => speechLimited(ttsLimits, chatId),
         downloadFile: downloadFile || fetchTelegramFile
@@ -321,10 +371,29 @@ function createRuntimeContext({
 
 export function createTelegramRuntime(options = {}) {
     const context = createRuntimeContext(options);
+    const processedUpdates = new Set();
+    const inFlightUpdates = new Map();
+    async function processUpdate(update, overrides = {}) {
+        const updateId = update && update.update_id;
+        if (!Number.isInteger(updateId)) return handleUpdate(update, { ...context, ...overrides });
+        if (inFlightUpdates.has(updateId)) return inFlightUpdates.get(updateId);
+        if (processedUpdates.has(updateId)) return { duplicate: true };
+        processedUpdates.add(updateId);
+        if (processedUpdates.size > 5000) processedUpdates.delete(processedUpdates.values().next().value);
+        const processing = handleUpdate(update, { ...context, ...overrides }).then((result) => {
+            return result;
+        });
+        inFlightUpdates.set(updateId, processing);
+        try {
+            return await processing;
+        } finally {
+            inFlightUpdates.delete(updateId);
+        }
+    }
     return {
         getSession: context.session,
         send: context.send,
-        processUpdate: (update, overrides = {}) => handleUpdate(update, { ...context, ...overrides })
+        processUpdate
     };
 }
 
@@ -337,9 +406,12 @@ async function sendAnswer(chatId, s, text, extra, context) {
     if (s.lang === 'en') return context.send(chatId, t(s, 'voiceUnavailable'));
     if (!context.speech || typeof context.speech.synthesize !== 'function') return context.send(chatId, t(s, 'speechUnavailable'));
     if (context.ttsLimited(chatId)) return context.send(chatId, t(s, 'speechRateLimited'));
+    const speechText = text.replace(/\s*\[\d+\]/g, '').trim();
+    if (speechText.length > 600) return context.send(chatId, t(s, 'speechTooLong'));
     try {
-        const audio = await context.speech.synthesize({ text: text.replace(/\s*\[\d+\]/g, '').slice(0, 600), language: s.lang });
-        await context.tg('sendAudio', { chat_id: chatId, audio: audio.audioUrl });
+        const audio = await context.speech.synthesize({ text: speechText, language: s.lang });
+        const delivered = await context.tg('sendAudio', { chat_id: chatId, audio: audio.audioUrl });
+        if (!delivered) await context.send(chatId, t(s, 'speechUnavailable'));
     } catch {
         await context.send(chatId, t(s, 'speechUnavailable'));
     }
@@ -349,7 +421,7 @@ async function handleText(chatId, s, text, context) {
     if (s.handoff) return relayToHuman(chatId, s, text, context);
 
     const detected = detectChannelLanguage(text);
-    if (detected && !s.languageExplicit) s.lang = detected;
+    if (detected && !s.languageExplicit && s.lang !== detected) { s.lang = detected; s.history = []; }
     const lang = s.lang;
     if (!lang) return context.send(chatId, t(s, 'languageUnclear'));
     let data;
@@ -440,6 +512,14 @@ function telegramLanguage(value) {
     return ['en', 'am', 'om', 'ti'].includes(language) ? language : null;
 }
 
+function languageKeyboard(session) {
+    const choices = [['en', 'English'], ['am', 'አማርኛ'], ['om', 'Afaan Oromo'], ['ti', 'ትግርኛ']];
+    return [choices.slice(0, 2), choices.slice(2)].map((row) => row.map(([code, label]) => ({
+        text: `${session.lang === code ? '✓ ' : ''}${label}`,
+        callback_data: `language_${code}`
+    })));
+}
+
 async function handleVoice(chatId, s, message, context) {
     const media = message.voice || message.audio;
     if (!context.speech || typeof context.speech.transcribe !== 'function') return context.send(chatId, t(s, 'speechUnavailable'));
@@ -454,8 +534,15 @@ async function handleVoice(chatId, s, message, context) {
         const detected = detectChannelLanguage(transcript.text);
         if (!s.languageExplicit && detected) s.lang = detected;
         else if (!s.lang) s.lang = language;
-        await context.send(chatId, `${t(s, 'transcriptPrefix')}\n${transcript.text}`);
-        return handleText(chatId, s, transcript.text, context);
+        s.pendingTranscript = { text: transcript.text, expiresAt: context.now() + 5 * 60 * 1000 };
+        s.editingTranscript = false;
+        return context.send(chatId, `${t(s, 'transcriptPrefix')}\n${transcript.text}\n\n${t(s, 'transcriptConfirm')}`, {
+            reply_markup: { inline_keyboard: [[
+                { text: t(s, 'transcriptSubmitButton'), callback_data: 'transcript_submit' },
+                { text: t(s, 'transcriptEditButton'), callback_data: 'transcript_edit' },
+                { text: t(s, 'transcriptCancelButton'), callback_data: 'transcript_cancel' }
+            ]] }
+        });
     } catch (e) {
         const key = e.code === 'speech_disabled' ? 'speechUnavailable' :
             e.code === 'audio_too_large' ? 'audioTooLarge' :
@@ -469,6 +556,28 @@ async function handleCallback(cb, context) {
     const chatId = cb.message.chat.id;
     const s = context.session(chatId);
     await context.tg('answerCallbackQuery', { callback_query_id: cb.id });
+    const languageMatch = /^language_(en|am|om|ti)$/.exec(cb.data || '');
+    if (languageMatch) {
+        setLanguage(s, languageMatch[1]);
+        return context.send(chatId, t(s, 'languageSet'), { reply_markup: { inline_keyboard: languageKeyboard(s) } });
+    }
+    if (String(cb.data || '').startsWith('language_')) {
+        return context.send(chatId, t(s, 'languagePrompt'), { reply_markup: { inline_keyboard: languageKeyboard(s) } });
+    }
+    if (s.pendingTranscript && s.pendingTranscript.expiresAt <= context.now()) s.pendingTranscript = null;
+    if (cb.data === 'transcript_cancel') { s.pendingTranscript = null; s.editingTranscript = false; return context.send(chatId, t(s, 'transcriptCancelled')); }
+    if (cb.data === 'transcript_edit') {
+        if (!s.pendingTranscript) return context.send(chatId, t(s, 'transcriptExpired'));
+        s.editingTranscript = true;
+        return context.send(chatId, t(s, 'transcriptEditPrompt'));
+    }
+    if (cb.data === 'transcript_submit') {
+        if (!s.pendingTranscript) return context.send(chatId, t(s, 'transcriptExpired'));
+        const transcript = s.pendingTranscript.text;
+        s.pendingTranscript = null;
+        s.editingTranscript = false;
+        return handleText(chatId, s, transcript, context);
+    }
     if (cb.data === 'escalate') {
         if (s.handoff) return context.send(chatId, t(s, 'already'));
         return consentPrompt(chatId, s, context);
@@ -487,6 +596,7 @@ async function handleUpdate(u, context = defaultRuntime) {
     if (!msg) return;
     const chatId = msg.chat.id;
     const s = context.session(chatId);
+    if (s.pendingTranscript && s.pendingTranscript.expiresAt <= context.now()) { s.pendingTranscript = null; s.editingTranscript = false; }
 
     if (msg.voice || msg.audio) return handleVoice(chatId, s, msg, context);
     const text = (msg.text || '').trim();
@@ -495,6 +605,17 @@ async function handleUpdate(u, context = defaultRuntime) {
     if (text.length > 1000) return context.send(chatId, t(s, 'error'));
     const parsed = parseTelegramInput(text);
     const { command, argument } = parsed;
+    if (!command && s.pendingTranscript && s.editingTranscript) {
+        s.pendingTranscript.text = text;
+        s.editingTranscript = false;
+        return context.send(chatId, `${t(s, 'transcriptPrefix')}\n${text}\n\n${t(s, 'transcriptConfirm')}`, {
+            reply_markup: { inline_keyboard: [[
+                { text: t(s, 'transcriptSubmitButton'), callback_data: 'transcript_submit' },
+                { text: t(s, 'transcriptEditButton'), callback_data: 'transcript_edit' },
+                { text: t(s, 'transcriptCancelButton'), callback_data: 'transcript_cancel' }
+            ]] }
+        });
+    }
 
     if (command === '/start') {
         if (!s.lang) s.lang = telegramLanguage(msg.from && msg.from.language_code) || 'en';
@@ -503,19 +624,19 @@ async function handleUpdate(u, context = defaultRuntime) {
     if (command === '/help') return context.send(chatId, t(s, 'help'));
     if (command === '/language' || command === '/lang') {
         const selected = parsed.language;
-        if (!selected) return context.send(chatId, t(s, 'languagePrompt'));
-        s.lang = selected;
-        s.languageExplicit = true;
+        if (!selected) return context.send(chatId, t(s, 'languagePrompt'), { reply_markup: { inline_keyboard: languageKeyboard(s) } });
+        setLanguage(s, selected);
         return context.send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
     }
     if (command === '/en' || command === '/am' || command === '/om' || command === '/ti') {
-        s.lang = command.slice(1);
-        s.languageExplicit = true;
+        setLanguage(s, command.slice(1));
         return context.send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
     }
     if (!command) {
-        const plainLanguage = applyTelegramLanguage(s, parsed);
-        if (plainLanguage) return context.send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
+        if (parsed.language) {
+            setLanguage(s, parsed.language);
+            return context.send(chatId, t(s, 'languageSet') + '\n' + t(s, 'welcome'));
+        }
     }
     if (command === '/voice') { s.responseMode = 'voice'; return context.send(chatId, t(s, 'voiceMode')); }
     if (command === '/text') { s.responseMode = 'text'; return context.send(chatId, t(s, 'textMode')); }
@@ -540,7 +661,7 @@ async function handleUpdate(u, context = defaultRuntime) {
                 history: s.history.slice(-4)
             });
             const sources = jobs.citations && jobs.citations.length ? `\n\n${t(s, 'sources')} ${jobs.citations.map((c) => c.title).join('; ')}` : '';
-            return sendAnswer(chatId, s, `${jobs.answer}${sources}\n\n${t(s, 'jobsSubscribed')}`, undefined, context);
+            return sendAnswer(chatId, s, `${t(s, 'jobsDisclaimer')}\n\n${jobs.answer}${sources}\n\n${t(s, 'jobsSubscribed')}`, undefined, context);
         }
         catch { return context.send(chatId, t(s, 'error')); }
     }
@@ -554,6 +675,7 @@ async function handleUpdate(u, context = defaultRuntime) {
         return context.send(chatId, t(s, 'accommodationPrompt'));
     }
     if (command === '/cancel') {
+        if (s.pendingTranscript) { s.pendingTranscript = null; s.editingTranscript = false; return context.send(chatId, t(s, 'transcriptCancelled')); }
         if (s.pendingAccommodation) { s.pendingAccommodation = false; return context.send(chatId, t(s, 'accommodationCancelled')); }
         if (s.pendingConsent) { s.pendingConsent = false; return context.send(chatId, t(s, 'cancelled')); }
         return context.send(chatId, t(s, 'noActive'));

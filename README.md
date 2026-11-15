@@ -293,7 +293,9 @@ npm run bot
 
 Polling and webhooks cannot be active for the same bot at the same time. Remove its configured webhook before using local polling, then restore the Render webhook after local testing. Telegram users must start a conversation with the bot before it can message them.
 
-The bot remembers language, text/voice mode, and learning history in process memory; these reset when Render restarts. Human handoffs and job-alert subscriptions are also in-memory in this demo deployment. Agent requests appear in the protected support console's live queue; there is no separate email or push notification integration.
+`/language` opens an inline selector for English, Amharic, Afaan Oromo, and Tigrinya; slash-command selections remain available. Voice transcripts are shown for review and must be submitted before course chat. Learners can edit or cancel a transcript; pending transcripts expire after five minutes. Long text replies are sent sequentially in chunks under Telegram's message limit. Duplicate update IDs are suppressed in process memory to avoid repeated replies while the service remains running.
+
+No database is configured or used. Language/voice preferences, conversation history, transcript confirmations, processed update IDs, human handoffs, and job-alert subscriptions are in memory and reset on process restart or redeploy. Job content is locally maintained and is not a verified live vacancy feed. Agents see requests in the protected console's polling queue; there is no separate email or push notification integration, agent identity, or assignment lock.
 
 ---
 

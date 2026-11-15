@@ -23,7 +23,7 @@ import { createWebhookSmsAdapter } from '../api/sms/webhook-adapter.js';
 import { detectChannelLanguage, parseChannelLanguage, smsEncoding } from '../api/sms/language.js';
 import { parseTelegramInput } from '../telegram/commands.js';
 import { applyTelegramLanguage } from '../telegram/commands.js';
-import { createTelegramRuntime, registerWebhook } from '../telegram/bot.js';
+import { createTelegramRuntime, registerWebhook, splitTelegramText } from '../telegram/bot.js';
 import { createJobStore } from '../api/jobs/store.js';
 import { MAX_SPEECH_BYTES, readSpeechUpload, validateSpeechAudio } from '../api/speech/upload.js';
 
@@ -378,7 +378,8 @@ test('Telegram remembers language and response mode and routes text and voice th
       async synthesize(input) { spoken.push(input); return { audioUrl: 'https://speech.example/answer.mp3' }; }
     }
   });
-  const update = (chatId, text) => runtime.processUpdate({ update_id: chatId, message: { chat: { id: chatId }, from: { language_code: 'en' }, text } });
+  let nextUpdateId = 90010;
+  const update = (chatId, text) => runtime.processUpdate({ update_id: nextUpdateId++, message: { chat: { id: chatId }, from: { language_code: 'en' }, text } });
 
   await update(9001, '/language Afaan Oromoo');
   await update(9001, '/voice');
@@ -388,10 +389,14 @@ test('Telegram remembers language and response mode and routes text and voice th
   assert.equal(runtime.getSession(9001).languageExplicit, true);
   assert.equal(runtime.getSession(9001).responseMode, 'voice');
   assert.equal(apiRequests[0].body.lang, 'om');
-  assert.equal(apiRequests[1].body.lang, 'om');
-  assert.equal(apiRequests[1].body.history.length, 2);
   assert.equal(transcripts[0].language, 'om');
   assert.equal(transcripts[0].mimeType, 'audio/wav');
+  assert.equal(apiRequests.length, 1, 'voice text waits for learner confirmation');
+  assert.ok(sent.some((item) => item.params.reply_markup?.inline_keyboard?.[0]?.[0]?.callback_data === 'transcript_submit'));
+  await runtime.processUpdate({ update_id: 9003, callback_query: { id: 'transcript-submit', data: 'transcript_submit', message: { chat: { id: 9001 } } } });
+  assert.equal(apiRequests[1].body.lang, 'om');
+  assert.equal(apiRequests[1].body.message, 'Akkamitti hojii barnoota?');
+  assert.equal(apiRequests[1].body.history.length, 2);
   assert.equal(spoken.length, 2);
   assert.equal(sent.filter((item) => item.method === 'sendAudio').length, 2);
 
@@ -428,6 +433,102 @@ test('Telegram downloads only Telegram-returned safe paths and reports unavailab
   const noSpeech = createTelegramRuntime({ telegramCall: async (method, params) => { sent.push({ method, params }); return true; } });
   await noSpeech.processUpdate({ update_id: 9202, message: { chat: { id: 9202 }, voice: { file_id: 'file-id', duration: 1 } } });
   assert.match(sent.at(-1).params.text, /Speech recognition|Speech service/);
+});
+
+test('Telegram language buttons acknowledge callbacks and transcript can be corrected, canceled, or expire', async () => {
+  const sent = [];
+  const chatRequests = [];
+  let now = 1000;
+  const runtime = createTelegramRuntime({
+    now: () => now,
+    telegramCall: async (method, params) => { sent.push({ method, params }); return true; },
+    apiCall: async (_method, path, body) => {
+      if (path === '/v1/chat') chatRequests.push(body);
+      return { answer: 'Course answer', citations: [], escalate: false };
+    },
+    downloadFile: async () => ({ audio: makeWav(), mimeType: 'audio/wav' }),
+    speech: { async transcribe() { return { text: 'unclear transcript', language: 'en' }; } }
+  });
+  await runtime.processUpdate({ update_id: 9401, message: { chat: { id: 9401 }, text: '/language' } });
+  const menu = sent.at(-1).params.reply_markup.inline_keyboard.flat();
+  assert.deepEqual(menu.map((button) => button.callback_data), ['language_en', 'language_am', 'language_om', 'language_ti']);
+  await runtime.processUpdate({ update_id: 9402, callback_query: { id: 'lang-choice', data: 'language_am', message: { chat: { id: 9401 } } } });
+  assert.ok(sent.some((item) => item.method === 'answerCallbackQuery' && item.params.callback_query_id === 'lang-choice'));
+  assert.equal(runtime.getSession(9401).lang, 'am');
+  assert.ok(sent.at(-1).params.reply_markup.inline_keyboard.flat().some((button) => button.text === '✓ አማርኛ'));
+  runtime.getSession(9401).history.push({ role: 'user', content: 'old language question' });
+  await runtime.processUpdate({ update_id: 9411, callback_query: { id: 'bad-language', data: 'language_invalid', message: { chat: { id: 9401 } } } });
+  assert.equal(runtime.getSession(9401).lang, 'am');
+  await runtime.processUpdate({ update_id: 9412, message: { chat: { id: 9401 }, text: '/language Afaan Oromoo' } });
+  assert.equal(runtime.getSession(9401).history.length, 0);
+
+  const voice = (update_id) => runtime.processUpdate({ update_id, message: { chat: { id: 9401 }, voice: { file_id: 'file', file_size: 100, duration: 1, mime_type: 'audio/wav' } } });
+  const callback = (update_id, id, data) => runtime.processUpdate({ update_id, callback_query: { id, data, message: { chat: { id: 9401 } } } });
+  await voice(9403);
+  await callback(9404, 'edit-transcript', 'transcript_edit');
+  await runtime.processUpdate({ update_id: 9405, message: { chat: { id: 9401 }, text: 'How do I find my courses?' } });
+  assert.equal(chatRequests.length, 0, 'corrected transcript still waits for confirmation');
+  await callback(9406, 'submit-transcript', 'transcript_submit');
+  assert.equal(chatRequests[0].message, 'How do I find my courses?');
+  assert.equal(chatRequests[0].lang, 'om');
+
+  await voice(9407);
+  await callback(9408, 'cancel-transcript', 'transcript_cancel');
+  assert.equal(runtime.getSession(9401).pendingTranscript, null);
+  assert.equal(chatRequests.length, 1);
+
+  await voice(9409);
+  now += 5 * 60 * 1000 + 1;
+  await callback(9410, 'expired-transcript', 'transcript_submit');
+  assert.equal(chatRequests.length, 1);
+  assert.match(sent.at(-1).params.text, /expired|ጊዜው/i);
+});
+
+test('Telegram chunks long messages safely and suppresses duplicate concurrent updates per process', async () => {
+  const longAnswer = 'beginner answer '.repeat(700);
+  const sent = [];
+  let apiCalls = 0;
+  const runtime = createTelegramRuntime({
+    telegramCall: async (method, params) => { sent.push({ method, params }); return true; },
+    apiCall: async () => { apiCalls += 1; return { answer: longAnswer, citations: [{ title: 'Guide' }], escalate: false }; }
+  });
+  const update = { update_id: 9501, message: { chat: { id: 9501 }, text: 'How do I find my courses?' } };
+  await Promise.all([runtime.processUpdate(update), runtime.processUpdate(update)]);
+  await runtime.processUpdate(update);
+  const chunks = sent.filter((item) => item.method === 'sendMessage').map((item) => item.params.text);
+  assert.equal(apiCalls, 1);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every((chunk) => chunk.length <= 3900));
+  assert.equal(chunks.join(''), `${longAnswer}\n\nSources: Guide`);
+  assert.deepEqual(splitTelegramText('  \n'), []);
+  assert.throws(() => splitTelegramText('x', 0), RangeError);
+
+  const failing = createTelegramRuntime({ telegramCall: async () => false });
+  await assert.rejects(failing.processUpdate({ update_id: 9502, message: { chat: { id: 9502 }, text: '/start' } }), (error) => error.code === 'telegram_delivery_failed');
+});
+
+test('Telegram jobs and accommodation flows disclose local listings and human follow-up', async () => {
+  const sent = [];
+  const requests = [];
+  const runtime = createTelegramRuntime({
+    telegramCall: async (_method, params) => { sent.push(params); return true; },
+    apiCall: async (method, path, body) => {
+      requests.push({ path, body });
+      if (path === '/v1/accommodations') return { id: 'accommodation-1', token: 'learner-token' };
+      if (method === 'GET') return { status: 'closed', messages: [] };
+      return { answer: 'Career guidance from course material.', citations: [{ title: 'Local guide' }], escalate: false };
+    }
+  });
+  await runtime.processUpdate({ update_id: 9601, message: { chat: { id: 9601 }, text: '/jobs' } });
+  assert.match(sent.at(-1).text, /not verified live vacancies/i);
+  assert.ok(requests.some((request) => request.path === '/v1/jobs/subscribe'));
+  assert.ok(requests.some((request) => request.path === '/v1/chat'));
+
+  await runtime.processUpdate({ update_id: 9602, message: { chat: { id: 9601 }, text: '/accommodation' } });
+  assert.match(sent.at(-1).text, /cannot guarantee or arrange/i);
+  await runtime.processUpdate({ update_id: 9603, message: { chat: { id: 9601 }, text: 'I need an interpreter for an interview.' } });
+  assert.ok(requests.some((request) => request.path === '/v1/accommodations' && /interpreter/.test(request.body.request)));
+  assert.match(sent.at(-1).text, /sent to a person/i);
 });
 
 test('Telegram human support obtains consent, relays both ways, and ends cleanly', async () => {
