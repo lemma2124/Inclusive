@@ -11,7 +11,7 @@ services:
       - key: PORT
         value: 10000
       - key: AI_PROVIDERS
-        value: gemini,ollama,offline
+        value: gemini,groq,offline
       - key: CORS_ORIGIN
         value: "*"
       - key: RATE_LIMIT_PER_MIN
@@ -33,7 +33,7 @@ services:
       - key: TELEGRAM_WEBHOOK_URL
         value: https://inclusive-h8fk.onrender.com
       - key: TELEGRAM_WEBHOOK_SECRET
-        value: ${INTERNAL_KEY}
+        sync: false
       - key: TELEGRAM_WEBHOOK_PATH
         value: /telegram/webhook
       - key: SMS_INBOUND_KEY

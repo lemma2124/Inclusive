@@ -20,6 +20,29 @@ function badRequest(code, message, status = 400) {
   return Object.assign(new Error(message), { status, code });
 }
 
+export async function validateSpeechAudio({ audio, mimeType, language, parseMetadata = parseBuffer }) {
+  const normalizedType = String(mimeType || '').split(';', 1)[0].trim().toLowerCase();
+  if (!ALLOWED_AUDIO.has(normalizedType)) throw badRequest('unsupported_audio_format', 'Use WebM, WAV, MP3, or M4A audio.');
+  if (!Buffer.isBuffer(audio) || audio.length === 0) throw badRequest('audio_required', 'A non-empty audio recording is required.');
+  if (audio.length > MAX_SPEECH_BYTES) throw badRequest('audio_too_large', 'Recording is too large. Keep it under 8 MB.', 413);
+  if (!['am', 'om', 'ti', 'en'].includes(language)) {
+    throw badRequest('unsupported_speech_language', 'Choose Amharic, Afaan Oromo, Tigrinya, or English for speech transcription.', 422);
+  }
+  try {
+    const metadata = await parseMetadata(audio, { mimeType: normalizedType }, { duration: true });
+    if (!Number.isFinite(metadata.format.duration) || metadata.format.duration <= 0) {
+      throw badRequest('invalid_audio', 'The recording duration could not be verified.', 422);
+    }
+    if (metadata.format.duration > MAX_SPEECH_SECONDS) {
+      throw badRequest('audio_too_long', 'Keep recordings to 30 seconds or less.', 413);
+    }
+  } catch (e) {
+    if (e && e.status) throw e;
+    throw badRequest('invalid_audio', 'The recording is invalid or its duration could not be read.', 422);
+  }
+  return { audio, mimeType: normalizedType, language };
+}
+
 export async function readSpeechUpload(req, { parseMetadata = parseBuffer } = {}) {
   const length = Number(req.headers['content-length'] || 0);
   if (length > MAX_SPEECH_BYTES + 64 * 1024) {
@@ -97,27 +120,7 @@ export async function readSpeechUpload(req, { parseMetadata = parseBuffer } = {}
       if (failure) { reject(failure); return; }
       if (!fieldFinished || language === '' || !gotFile) { reject(badRequest('invalid_audio_upload', 'The recording and speech language are required.')); return; }
       if (!fileFinished) { reject(badRequest('invalid_audio_upload', 'The audio upload was incomplete.')); return; }
-      if (!gotFile || !audio) { reject(badRequest('audio_required', 'A non-empty audio recording is required.')); return; }
-      if (!['am', 'om', 'ti', 'en'].includes(language)) {
-        reject(badRequest('unsupported_speech_language', 'Choose Amharic, Afaan Oromo, Tigrinya, or English for speech transcription.', 422));
-        return;
-      }
-      try {
-        const metadata = await parseMetadata(audio, { mimeType }, { duration: true });
-        if (!Number.isFinite(metadata.format.duration) || metadata.format.duration <= 0) {
-          reject(badRequest('invalid_audio', 'The recording duration could not be verified.', 422));
-          return;
-        }
-        if (metadata.format.duration > MAX_SPEECH_SECONDS) {
-          reject(badRequest('audio_too_long', 'Keep recordings to 30 seconds or less.', 413));
-          return;
-        }
-      } catch (e) {
-        if (e && e.status) { reject(e); return; }
-        reject(badRequest('invalid_audio', 'The recording is invalid or its duration could not be read.', 422));
-        return;
-      }
-      resolve({ audio, mimeType, language });
+      validateSpeechAudio({ audio, mimeType, language, parseMetadata }).then(resolve, reject);
     });
 
     req.on('aborted', () => { failure ||= badRequest('upload_aborted', 'The recording upload was interrupted.'); });
