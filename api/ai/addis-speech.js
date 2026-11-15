@@ -3,6 +3,11 @@ import { randomUUID } from 'node:crypto';
 const API_BASE = 'https://api.addisassistant.com/api/v1';
 const STT_LANGUAGES = new Set(['am', 'om', 'ti', 'en']);
 const TTS_LANGUAGES = new Set(['am', 'om', 'ti']);
+const AUDIO_EXTENSIONS = Object.freeze({
+  'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/wav': 'wav',
+  'audio/x-wav': 'wav', 'audio/wave': 'wav'
+});
 const VOICE_CACHE_MS = 5 * 60 * 1000;
 
 function providerError(res, operation) {
@@ -43,7 +48,7 @@ export function createAddisSpeech({ apiKey = '', fetchImpl = fetch, timeoutMs = 
     }
 
     const form = new FormData();
-    form.append('audio', new Blob([audio], { type: mimeType }), `recording.${mimeType === 'audio/webm' ? 'webm' : mimeType === 'audio/mp4' ? 'm4a' : 'wav'}`);
+    form.append('audio', new Blob([audio], { type: mimeType }), `recording.${AUDIO_EXTENSIONS[mimeType] || 'wav'}`);
     const requestId = randomUUID();
     const query = new URLSearchParams({ language, backend: 'turbo', request_id: requestId });
     let res;

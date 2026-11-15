@@ -160,8 +160,9 @@
       var b = document.createElement('button');
       b.type = 'button';
       var mins = Math.max(0, Math.round((Date.now() - h.createdAt) / 60000));
-            var kindLabel = h.kind === 'accommodation' ? 'Accommodation · ' : '';
-      b.textContent = kindLabel + (h.status === 'waiting' ? 'Waiting' : 'Active') + ' · ' + mins + ' min · ' + (h.lang === 'am' ? 'Amharic' : 'English') + ' · ' + (h.question || '(no question)').slice(0, 80);
+      var kindLabel = h.kind === 'accommodation' ? 'Accommodation · ' : '';
+      var languageNames = { en: 'English', am: 'Amharic', om: 'Afaan Oromo', ti: 'Tigrinya' };
+      b.textContent = kindLabel + (h.status === 'waiting' ? 'Waiting' : 'Active') + ' · ' + mins + ' min · ' + (languageNames[h.lang] || 'English') + ' · ' + (h.question || '(no question)').slice(0, 80);
       if (h.id === current) { b.setAttribute('aria-current', 'true'); }
       b.addEventListener('click', function () { select(h.id); });
       li.appendChild(b);

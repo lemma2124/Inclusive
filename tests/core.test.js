@@ -23,8 +23,9 @@ import { createWebhookSmsAdapter } from '../api/sms/webhook-adapter.js';
 import { detectChannelLanguage, parseChannelLanguage, smsEncoding } from '../api/sms/language.js';
 import { parseTelegramInput } from '../telegram/commands.js';
 import { applyTelegramLanguage } from '../telegram/commands.js';
+import { createTelegramRuntime, registerWebhook, splitTelegramText } from '../telegram/bot.js';
 import { createJobStore } from '../api/jobs/store.js';
-import { MAX_SPEECH_BYTES, readSpeechUpload } from '../api/speech/upload.js';
+import { MAX_SPEECH_BYTES, readSpeechUpload, validateSpeechAudio } from '../api/speech/upload.js';
 
 const passages = loadPassages();
 const retriever = new Retriever(passages);
@@ -189,6 +190,29 @@ test('provider factory enables Gemini from server configuration', () => {
   assert.equal(providers[0].available(), true);
 });
 
+test('production provider factory skips missing cloud keys and loopback Ollama but retains offline', () => {
+  const providers = buildProviders({
+    nodeEnv: 'production',
+    providers: ['gemini', 'groq', 'ollama', 'offline'],
+    geminiKey: '', groqKey: '',
+    ollamaBaseUrl: 'http://127.0.0.1:11434/v1', ollamaModel: 'test-model'
+  });
+  assert.deepEqual(providers.map((provider) => provider.name), ['offline']);
+  assert.equal(providers[0].available(), true);
+});
+
+test('configured Groq remains active and a cloud failure falls back to offline', async () => {
+  const providers = buildProviders({
+    providers: ['groq'], groqKey: 'configured-groq-key', groqModel: 'test-model'
+  });
+  assert.deepEqual(providers.map((provider) => provider.name), ['groq', 'offline']);
+  const failing = fakeProvider('groq', () => { throw new ProviderError('temporary provider failure', { status: 503 }); });
+  const router = createRouter({ providers: [failing, createOffline()] });
+  const result = await router.generate({ system: 's', messages: [{ role: 'user', content: 'q' }], passages: [{ text: 'Course text' }] });
+  assert.equal(result.provider, 'offline');
+  assert.match(result.text, /Course text/);
+});
+
 test('default configuration tries Gemini before local and offline fallbacks', () => {
   const cfg = loadConfig({});
   assert.deepEqual(cfg.providers, ['gemini', 'ollama', 'offline']);
@@ -235,8 +259,23 @@ test('Addis STT sends language, a unique request ID, and audio without exposing 
   assert.equal(new URL(request.url).searchParams.get('backend'), 'turbo');
   assert.ok(new URL(request.url).searchParams.get('request_id'));
   assert.equal(request.options.headers['x-api-key'], 'test-addis-secret');
+  assert.equal(request.options.body.get('audio').name, 'recording.webm');
   assert.equal(result.text, 'transcribed words');
   assert.equal(result.language, 'om');
+});
+
+test('Addis STT keeps Telegram OGG voice notes labeled as OGG', async () => {
+  let request;
+  const speech = createAddisSpeech({
+    apiKey: 'test-addis-secret',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return Response.json({ data: { text: 'transcribed voice' } });
+    }
+  });
+  await speech.transcribe({ audio: Buffer.from('mock ogg'), mimeType: 'audio/ogg', language: 'am' });
+  assert.equal(request.options.body.get('audio').name, 'recording.ogg');
+  assert.equal(request.options.body.get('audio').type, 'audio/ogg');
 });
 
 test('Addis speech handles missing key, unsupported languages, and invalid credentials safely', async () => {
@@ -308,6 +347,228 @@ test('speech upload parser accepts allowed media and enforces duration, size, an
   const oversized = Readable.from([]);
   oversized.headers = { 'content-type': 'multipart/form-data; boundary=x', 'content-length': String(MAX_SPEECH_BYTES + 100000) };
   await assert.rejects(readSpeechUpload(oversized), (e) => e.code === 'audio_too_large');
+});
+
+test('speech buffer validator applies the shared upload limits to Telegram audio', async () => {
+  const audio = makeWav();
+  const parseMetadata = async () => ({ format: { duration: 1 } });
+  assert.deepEqual(await validateSpeechAudio({ audio, mimeType: 'audio/wav', language: 'om', parseMetadata }), {
+    audio, mimeType: 'audio/wav', language: 'om'
+  });
+  await assert.rejects(validateSpeechAudio({ audio, mimeType: 'application/octet-stream', language: 'en', parseMetadata }), (e) => e.code === 'unsupported_audio_format');
+  await assert.rejects(validateSpeechAudio({ audio: Buffer.alloc(MAX_SPEECH_BYTES + 1), mimeType: 'audio/wav', language: 'en', parseMetadata }), (e) => e.code === 'audio_too_large');
+  await assert.rejects(validateSpeechAudio({ audio, mimeType: 'audio/wav', language: 'so', parseMetadata }), (e) => e.code === 'unsupported_speech_language');
+  await assert.rejects(validateSpeechAudio({ audio, mimeType: 'audio/wav', language: 'en', parseMetadata: async () => ({ format: { duration: 31 } }) }), (e) => e.code === 'audio_too_long');
+});
+
+test('Telegram remembers language and response mode and routes text and voice through existing services', async () => {
+  const sent = [];
+  const apiRequests = [];
+  const transcripts = [];
+  const spoken = [];
+  const runtime = createTelegramRuntime({
+    telegramCall: async (method, params) => { sent.push({ method, params }); return true; },
+    apiCall: async (method, path, body) => {
+      apiRequests.push({ method, path, body });
+      return { answer: `${body.lang}: beginner answer [1]`, citations: [{ title: 'Course guide' }], escalate: false };
+    },
+    downloadFile: async (fileId) => ({ audio: makeWav(), mimeType: 'audio/wav', fileId }),
+    speech: {
+      async transcribe(input) { transcripts.push(input); return { text: 'Akkamitti hojii barnoota?', language: input.language }; },
+      async synthesize(input) { spoken.push(input); return { audioUrl: 'https://speech.example/answer.mp3' }; }
+    }
+  });
+  let nextUpdateId = 90010;
+  const update = (chatId, text) => runtime.processUpdate({ update_id: nextUpdateId++, message: { chat: { id: chatId }, from: { language_code: 'en' }, text } });
+
+  await update(9001, '/language Afaan Oromoo');
+  await update(9001, '/voice');
+  await update(9001, '/learn How do I find my courses?');
+  await runtime.processUpdate({ update_id: 9002, message: { chat: { id: 9001 }, voice: { file_id: 'voice-id', file_size: 100, duration: 2, mime_type: 'audio/wav' } } });
+  assert.equal(runtime.getSession(9001).lang, 'om');
+  assert.equal(runtime.getSession(9001).languageExplicit, true);
+  assert.equal(runtime.getSession(9001).responseMode, 'voice');
+  assert.equal(apiRequests[0].body.lang, 'om');
+  assert.equal(transcripts[0].language, 'om');
+  assert.equal(transcripts[0].mimeType, 'audio/wav');
+  assert.equal(apiRequests.length, 1, 'voice text waits for learner confirmation');
+  assert.ok(sent.some((item) => item.params.reply_markup?.inline_keyboard?.[0]?.[0]?.callback_data === 'transcript_submit'));
+  await runtime.processUpdate({ update_id: 9003, callback_query: { id: 'transcript-submit', data: 'transcript_submit', message: { chat: { id: 9001 } } } });
+  assert.equal(apiRequests[1].body.lang, 'om');
+  assert.equal(apiRequests[1].body.message, 'Akkamitti hojii barnoota?');
+  assert.equal(apiRequests[1].body.history.length, 2);
+  assert.equal(spoken.length, 2);
+  assert.equal(sent.filter((item) => item.method === 'sendAudio').length, 2);
+
+  await update(9001, '/text');
+  await update(9001, 'How do I find my courses?');
+  assert.equal(runtime.getSession(9001).responseMode, 'text');
+  assert.equal(spoken.length, 2);
+
+  const languageCommands = [['English', 'en'], ['Amharic', 'am'], ['Afaan Oromoo', 'om'], ['Tigrinya', 'ti']];
+  for (const [label, expected] of languageCommands) {
+    await update(9100 + languageCommands.findIndex(([name]) => name === label), `/language ${label}`);
+    assert.equal(runtime.getSession(9100 + languageCommands.findIndex(([name]) => name === label)).lang, expected);
+  }
+});
+
+test('Telegram downloads only Telegram-returned safe paths and reports unavailable speech', async () => {
+  const urls = [];
+  const sent = [];
+  const runtime = createTelegramRuntime({
+    token: 'test-telegram-token',
+    fetchImpl: async (url) => {
+      urls.push(url);
+      if (url.endsWith('/getFile')) return Response.json({ ok: true, result: { file_path: 'voice/file.wav' } });
+      if (url.includes('/file/bot')) return new Response(makeWav(), { headers: { 'content-type': 'audio/wav' } });
+      return Response.json({ ok: true, result: true });
+    },
+    apiCall: async () => ({ answer: 'Typed answer', citations: [], escalate: false }),
+    speech: { async transcribe() { return { text: 'How do I find my courses?', language: 'en' }; } }
+  });
+  await runtime.processUpdate({ update_id: 9201, message: { chat: { id: 9201 }, voice: { file_id: 'file-id', file_size: 100, duration: 1, mime_type: 'audio/wav' } } });
+  assert.ok(urls.some((url) => url.endsWith('/getFile')));
+  assert.ok(urls.some((url) => url.endsWith('/file/bottest-telegram-token/voice/file.wav')));
+
+  const noSpeech = createTelegramRuntime({ telegramCall: async (method, params) => { sent.push({ method, params }); return true; } });
+  await noSpeech.processUpdate({ update_id: 9202, message: { chat: { id: 9202 }, voice: { file_id: 'file-id', duration: 1 } } });
+  assert.match(sent.at(-1).params.text, /Speech recognition|Speech service/);
+});
+
+test('Telegram language buttons acknowledge callbacks and transcript can be corrected, canceled, or expire', async () => {
+  const sent = [];
+  const chatRequests = [];
+  let now = 1000;
+  const runtime = createTelegramRuntime({
+    now: () => now,
+    telegramCall: async (method, params) => { sent.push({ method, params }); return true; },
+    apiCall: async (_method, path, body) => {
+      if (path === '/v1/chat') chatRequests.push(body);
+      return { answer: 'Course answer', citations: [], escalate: false };
+    },
+    downloadFile: async () => ({ audio: makeWav(), mimeType: 'audio/wav' }),
+    speech: { async transcribe() { return { text: 'unclear transcript', language: 'en' }; } }
+  });
+  await runtime.processUpdate({ update_id: 9401, message: { chat: { id: 9401 }, text: '/language' } });
+  const menu = sent.at(-1).params.reply_markup.inline_keyboard.flat();
+  assert.deepEqual(menu.map((button) => button.callback_data), ['language_en', 'language_am', 'language_om', 'language_ti']);
+  await runtime.processUpdate({ update_id: 9402, callback_query: { id: 'lang-choice', data: 'language_am', message: { chat: { id: 9401 } } } });
+  assert.ok(sent.some((item) => item.method === 'answerCallbackQuery' && item.params.callback_query_id === 'lang-choice'));
+  assert.equal(runtime.getSession(9401).lang, 'am');
+  assert.ok(sent.at(-1).params.reply_markup.inline_keyboard.flat().some((button) => button.text === '✓ አማርኛ'));
+  runtime.getSession(9401).history.push({ role: 'user', content: 'old language question' });
+  await runtime.processUpdate({ update_id: 9411, callback_query: { id: 'bad-language', data: 'language_invalid', message: { chat: { id: 9401 } } } });
+  assert.equal(runtime.getSession(9401).lang, 'am');
+  await runtime.processUpdate({ update_id: 9412, message: { chat: { id: 9401 }, text: '/language Afaan Oromoo' } });
+  assert.equal(runtime.getSession(9401).history.length, 0);
+
+  const voice = (update_id) => runtime.processUpdate({ update_id, message: { chat: { id: 9401 }, voice: { file_id: 'file', file_size: 100, duration: 1, mime_type: 'audio/wav' } } });
+  const callback = (update_id, id, data) => runtime.processUpdate({ update_id, callback_query: { id, data, message: { chat: { id: 9401 } } } });
+  await voice(9403);
+  await callback(9404, 'edit-transcript', 'transcript_edit');
+  await runtime.processUpdate({ update_id: 9405, message: { chat: { id: 9401 }, text: 'How do I find my courses?' } });
+  assert.equal(chatRequests.length, 0, 'corrected transcript still waits for confirmation');
+  await callback(9406, 'submit-transcript', 'transcript_submit');
+  assert.equal(chatRequests[0].message, 'How do I find my courses?');
+  assert.equal(chatRequests[0].lang, 'om');
+
+  await voice(9407);
+  await callback(9408, 'cancel-transcript', 'transcript_cancel');
+  assert.equal(runtime.getSession(9401).pendingTranscript, null);
+  assert.equal(chatRequests.length, 1);
+
+  await voice(9409);
+  now += 5 * 60 * 1000 + 1;
+  await callback(9410, 'expired-transcript', 'transcript_submit');
+  assert.equal(chatRequests.length, 1);
+  assert.match(sent.at(-1).params.text, /expired|ጊዜው/i);
+});
+
+test('Telegram chunks long messages safely and suppresses duplicate concurrent updates per process', async () => {
+  const longAnswer = 'beginner answer '.repeat(700);
+  const sent = [];
+  let apiCalls = 0;
+  const runtime = createTelegramRuntime({
+    telegramCall: async (method, params) => { sent.push({ method, params }); return true; },
+    apiCall: async () => { apiCalls += 1; return { answer: longAnswer, citations: [{ title: 'Guide' }], escalate: false }; }
+  });
+  const update = { update_id: 9501, message: { chat: { id: 9501 }, text: 'How do I find my courses?' } };
+  await Promise.all([runtime.processUpdate(update), runtime.processUpdate(update)]);
+  await runtime.processUpdate(update);
+  const chunks = sent.filter((item) => item.method === 'sendMessage').map((item) => item.params.text);
+  assert.equal(apiCalls, 1);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every((chunk) => chunk.length <= 3900));
+  assert.equal(chunks.join(''), `${longAnswer}\n\nSources: Guide`);
+  assert.deepEqual(splitTelegramText('  \n'), []);
+  assert.throws(() => splitTelegramText('x', 0), RangeError);
+
+  const failing = createTelegramRuntime({ telegramCall: async () => false });
+  await assert.rejects(failing.processUpdate({ update_id: 9502, message: { chat: { id: 9502 }, text: '/start' } }), (error) => error.code === 'telegram_delivery_failed');
+});
+
+test('Telegram jobs and accommodation flows disclose local listings and human follow-up', async () => {
+  const sent = [];
+  const requests = [];
+  const runtime = createTelegramRuntime({
+    telegramCall: async (_method, params) => { sent.push(params); return true; },
+    apiCall: async (method, path, body) => {
+      requests.push({ path, body });
+      if (path === '/v1/accommodations') return { id: 'accommodation-1', token: 'learner-token' };
+      if (method === 'GET') return { status: 'closed', messages: [] };
+      return { answer: 'Career guidance from course material.', citations: [{ title: 'Local guide' }], escalate: false };
+    }
+  });
+  await runtime.processUpdate({ update_id: 9601, message: { chat: { id: 9601 }, text: '/jobs' } });
+  assert.match(sent.at(-1).text, /not verified live vacancies/i);
+  assert.ok(requests.some((request) => request.path === '/v1/jobs/subscribe'));
+  assert.ok(requests.some((request) => request.path === '/v1/chat'));
+
+  await runtime.processUpdate({ update_id: 9602, message: { chat: { id: 9601 }, text: '/accommodation' } });
+  assert.match(sent.at(-1).text, /cannot guarantee or arrange/i);
+  await runtime.processUpdate({ update_id: 9603, message: { chat: { id: 9601 }, text: 'I need an interpreter for an interview.' } });
+  assert.ok(requests.some((request) => request.path === '/v1/accommodations' && /interpreter/.test(request.body.request)));
+  assert.match(sent.at(-1).text, /sent to a person/i);
+});
+
+test('Telegram human support obtains consent, relays both ways, and ends cleanly', async () => {
+  const sent = [];
+  const calls = [];
+  let releasePoll;
+  let pollCount = 0;
+  const runtime = createTelegramRuntime({
+    telegramCall: async (method, params) => { sent.push({ method, params }); return true; },
+    apiCall: async (method, path, body, token) => {
+      calls.push({ method, path, body, token });
+      if (path === '/v1/chat') return { answer: 'Learning response', citations: [], escalate: true };
+      if (path === '/v1/handoff') return { id: 'handoff-1', token: 'learner-token' };
+      if (path.endsWith('/messages')) return { id: 3 };
+      if (path.endsWith('/close')) return { status: 'closed' };
+      if (method === 'GET') {
+        pollCount += 1;
+        if (pollCount === 1) return { status: 'active', messages: [{ id: 1, from: 'agent', text: 'An agent joined.' }, { id: 2, from: 'agent', text: 'How can I help?' }] };
+        return new Promise((resolve) => { releasePoll = resolve; });
+      }
+      throw new Error('unexpected API request');
+    }
+  });
+  await runtime.processUpdate({ update_id: 9301, message: { chat: { id: 9301 }, text: '/start' } });
+  await runtime.processUpdate({ update_id: 9302, message: { chat: { id: 9301 }, text: 'How do I find my courses?' } });
+  await runtime.processUpdate({ update_id: 9303, message: { chat: { id: 9301 }, text: '/support' } });
+  assert.ok(sent.some((item) => item.params.reply_markup?.inline_keyboard?.[0]?.[0]?.callback_data === 'escalate_yes'));
+  await runtime.processUpdate({ update_id: 9307, message: { chat: { id: 9301 }, text: '/cancel' } });
+  assert.equal(runtime.getSession(9301).pendingConsent, false);
+  assert.equal(calls.some((call) => call.path === '/v1/handoff'), false);
+  await runtime.processUpdate({ update_id: 9308, message: { chat: { id: 9301 }, text: '/support' } });
+  await runtime.processUpdate({ update_id: 9304, callback_query: { id: 'callback-1', data: 'escalate_yes', message: { chat: { id: 9301 } } } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(sent.some((item) => item.params.text === 'How can I help?'));
+  await runtime.processUpdate({ update_id: 9305, message: { chat: { id: 9301 }, text: 'I need more help.' } });
+  assert.ok(calls.some((call) => call.path.endsWith('/messages') && call.body.text === 'I need more help.'));
+  await runtime.processUpdate({ update_id: 9306, message: { chat: { id: 9301 }, text: '/end' } });
+  assert.ok(calls.some((call) => call.path.endsWith('/close')));
+  releasePoll?.({ status: 'closed', messages: [] });
+  assert.equal(runtime.getSession(9301).handoff, null);
 });
 
 test('chat answers with citations when the course covers the question', async () => {
@@ -391,6 +652,15 @@ test('chat answers an Amharic question in Amharic', async () => {
   assert.equal(r.citations[0].id, 'am-score');
 });
 
+test('offline provider does not return untranslated English course text as an Oromo answer', async () => {
+  const chat = createChat({ retriever, router: createRouter({ providers: [createOffline()] }) });
+  const result = await chat({ message: 'How do I mark a lesson as complete?', lang: 'om' });
+  assert.equal(result.grounded, false);
+  assert.equal(result.escalate, true);
+  assert.equal(result.provider, 'offline');
+  assert.equal(result.answer, FALLBACK.om);
+});
+
 test('chat preserves each requested language and instructs the provider to answer in that language', async () => {
   const responses = [];
   const provider = fakeProvider('gemini', (request) => {
@@ -438,6 +708,31 @@ async function withServer(cfg, fn, options = {}) {
   const base = `http://127.0.0.1:${server.address().port}`;
   try { await fn(base); } finally { server.closeAllConnections?.(); server.close(); }
 }
+
+test('HTTP: Telegram webhook requires the configured secret header', async () => {
+  const secret = 'telegram_secret-test_1234567890';
+  await withServer({ ...baseCfg, telegramWebhookSecret: secret }, async (base) => {
+    const url = `${base}/telegram/webhook`;
+    const body = JSON.stringify({ update_id: 42 });
+    const missing = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+    assert.equal(missing.status, 401);
+    assert.equal((await missing.json()).error.code, 'unauthorized');
+
+    const wrong = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wrong-secret' }, body });
+    assert.equal(wrong.status, 401);
+
+    const valid = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': secret }, body });
+    assert.equal(valid.status, 200);
+    assert.deepEqual(await valid.json(), { ok: true });
+  });
+
+  await withServer({ ...baseCfg, telegramWebhookSecret: '' }, async (base) => {
+    const response = await fetch(`${base}/telegram/webhook`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_id: 43 })
+    });
+    assert.equal(response.status, 503);
+  });
+});
 
 test('HTTP: /health, /v1/chat, validation, 404 and OpenAPI', async () => {
   await withServer(baseCfg, async (base) => {
@@ -959,4 +1254,33 @@ test('Telegram command parser supports new commands, bot mentions, and all langu
   for (const [label, expected] of [['English', 'en'], ['Amharic', 'am'], ['Afaan Oromoo', 'om'], ['Tigrinya', 'ti']]) {
     assert.equal(parseTelegramInput(`/language ${label}`).language, expected);
   }
+});
+
+test('Telegram webhook registration requires Telegram-compatible secret tokens', async () => {
+  let request;
+  const fetchImpl = async (url, options) => {
+    request = { url, options };
+    return Response.json({ ok: true, result: true });
+  };
+  const invalid = await registerWebhook({
+    token: 'test-token', baseUrl: 'https://assistant.example', secret: 'invalid secret!', fetchImpl
+  });
+  assert.deepEqual(invalid, { ok: false, reason: 'invalid_secret' });
+  assert.equal(request, undefined);
+
+  const registered = await registerWebhook({
+    token: 'test-token', baseUrl: 'https://assistant.example', path: '/telegram/webhook',
+    secret: 'telegram_secret-test_1234567890', fetchImpl
+  });
+  assert.deepEqual(registered, { ok: true, url: 'https://assistant.example/telegram/webhook' });
+  assert.equal(request.url, 'https://api.telegram.org/bottest-token/setWebhook');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    url: 'https://assistant.example/telegram/webhook', secret_token: 'telegram_secret-test_1234567890'
+  });
+
+  const failed = await registerWebhook({
+    token: 'test-token', baseUrl: 'https://assistant.example', secret: 'safe_secret_123456',
+    fetchImpl: async () => Response.json({ ok: false, description: 'includes secret safe_secret_123456' }, { status: 400 })
+  });
+  assert.deepEqual(failed, { ok: false, reason: 'telegram_error' });
 });

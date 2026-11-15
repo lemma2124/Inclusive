@@ -126,6 +126,10 @@ const STRINGS = {
     }
 };
 
+export function translateSmsMessage(language, key) {
+    return STRINGS[language]?.[key] || STRINGS.en[key] || '';
+}
+
 export function createSmsRuntime({ chat, store, jobStore, sendOutbound, maxPerMinute = 20, now = Date.now }) {
     const sessions = new Map();
     const processed = new Map();

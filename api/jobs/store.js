@@ -5,7 +5,7 @@ export function createJobStore() {
 
   return {
     subscribe({ channel, contact, lang }) {
-      subs.set(`${channel}:${contact}`, { channel, contact, lang: lang === 'am' ? 'am' : 'en', at: Date.now() });
+      subs.set(`${channel}:${contact}`, { channel, contact, lang: ['am', 'om', 'ti'].includes(lang) ? lang : 'en', at: Date.now() });
       return { subscribed: true };
     },
     unsubscribe({ channel, contact }) {

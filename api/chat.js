@@ -119,6 +119,10 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     ];
     const out = await router.generate({ system: buildSystemPrompt(learnerLang, passages), messages, passages, lang: learnerLang });
 
+    if (out.provider === 'offline' && contentLang !== learnerLang) {
+      return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: 'offline', lang: learnerLang, contentLang, note: 'translation_unavailable' };
+    }
+
     if (/^\s*NO_ANSWER/.test(out.text)) {
       return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: out.provider, lang: learnerLang };
     }
