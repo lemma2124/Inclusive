@@ -28,6 +28,14 @@ services:
         sync: false
       - key: ADDIS_API_KEY
         sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_WEBHOOK_URL
+        value: https://inclusive-h8fk.onrender.com
+      - key: TELEGRAM_WEBHOOK_SECRET
+        value: ${INTERNAL_KEY}
+      - key: TELEGRAM_WEBHOOK_PATH
+        value: /telegram/webhook
       - key: SMS_INBOUND_KEY
         sync: false
       - key: SMS_PROVIDER
@@ -36,17 +44,3 @@ services:
         sync: false
       - key: SMS_WEBHOOK_KEY
         sync: false
-
-  - type: worker
-    name: savanna-telegram
-    runtime: node
-    plan: free
-    buildCommand: npm install
-    startCommand: npm run bot
-    envVars:
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: API_URL
-        value: https://inclusive-h8fk.onrender.com
-      - key: INTERNAL_KEY
-        generateValue: true

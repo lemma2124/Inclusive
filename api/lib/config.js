@@ -21,6 +21,9 @@ export function loadConfig(env = process.env) {
     smsWebhookUrl: env.SMS_WEBHOOK_URL || '',
     smsWebhookKey: env.SMS_WEBHOOK_KEY || '',
     telegramBotToken: env.TELEGRAM_BOT_TOKEN || '',
+    telegramWebhookUrl: env.TELEGRAM_WEBHOOK_URL || '',
+    telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || env.INTERNAL_KEY || '',
+    telegramWebhookPath: env.TELEGRAM_WEBHOOK_PATH || '/telegram/webhook',
     contentDir: env.CONTENT_DIR || ''
   };
 }

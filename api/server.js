@@ -22,6 +22,7 @@ import { createTelegramSender } from './jobs/telegram-send.js';
 import { createAlertService } from './jobs/alerts.js';
 import { openapi } from './openapi.js';
 import { readSpeechUpload } from './speech/upload.js';
+import { processTelegramWebhook, registerWebhook } from '../telegram/bot.js';
 
 const MAX_BODY = 16 * 1024;
 const WIDGET_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'widget');
@@ -143,6 +144,11 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       if (req.method === 'OPTIONS') return send(204);
       if (GET && path === '/health') return send(200, { ok: true, passages: passages.length, providers: providers ? 'custom' : cfg.providers, humanHelp: Boolean(cfg.agentKey) });
       if (GET && path === '/v1/openapi.json') return send(200, openapi);
+      if (POST && path === cfg.telegramWebhookPath || cfg.telegramWebhookUrl && POST && path === new URL(cfg.telegramWebhookPath || '/telegram/webhook', cfg.telegramWebhookUrl).pathname) {
+        const body = await readJson(req);
+        await processTelegramWebhook(body, { secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
+        return send(200, { ok: true });
+      }
 
       // Addis AI speech stays server-side; uploaded audio is processed in memory only.
       if (POST && path === '/v1/speech/transcribe') {
@@ -313,8 +319,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   }
   if (cfg.agentKey && cfg.agentKey.length < 16) console.warn('AGENT_KEY is short. Use at least 16 random characters.');
   const { server } = createApp(cfg);
-  server.listen(cfg.port, () => {
+  server.listen(cfg.port, async () => {
     console.log(`INCLUSIVE API on http://localhost:${cfg.port} (providers: ${cfg.providers.join(', ')})`);
     console.log(`Demo: http://localhost:${cfg.port}/demo   Support console: ${cfg.agentKey ? `http://localhost:${cfg.port}/agent` : 'OFF (set AGENT_KEY)'}`);
+    if (cfg.telegramBotToken && cfg.telegramWebhookUrl) {
+      const result = await registerWebhook({ baseUrl: cfg.telegramWebhookUrl, path: cfg.telegramWebhookPath || '/telegram/webhook', secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
+      if (result.ok) console.log(`Telegram webhook registered: ${result.url}`);
+      else console.warn('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL and TELEGRAM_BOT_TOKEN.');
+    }
   });
 }

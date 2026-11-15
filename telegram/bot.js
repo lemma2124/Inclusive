@@ -6,15 +6,20 @@ import { detectChannelLanguage, parseChannelLanguage } from '../api/sms/language
 import { applyTelegramLanguage, parseTelegramInput } from './commands.js';
 import { pathToFileURL } from 'node:url';
 
-const API_URL = process.env.API_URL || 'http://localhost:8787';
-const INTERNAL_KEY = process.env.INTERNAL_KEY || '';
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const TG = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : null;
+export const BOT_ENV = {
+    API_URL: process.env.API_URL || 'http://localhost:8787',
+    INTERNAL_KEY: process.env.INTERNAL_KEY || '',
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
+    TELEGRAM_WEBHOOK_URL: process.env.TELEGRAM_WEBHOOK_URL || '',
+    TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET || process.env.INTERNAL_KEY || '',
+    TELEGRAM_WEBHOOK_PATH: process.env.TELEGRAM_WEBHOOK_PATH || '/telegram/webhook',
+    TELEGRAM_POLLING: process.env.TELEGRAM_POLLING === 'true'
+};
 
-if (!TELEGRAM_BOT_TOKEN) {
-    console.error('TELEGRAM_BOT_TOKEN is not set. Export it before starting the Telegram bot.');
-    process.exit(1);
-}
+const API_URL = BOT_ENV.API_URL;
+const INTERNAL_KEY = BOT_ENV.INTERNAL_KEY;
+const TELEGRAM_BOT_TOKEN = BOT_ENV.TELEGRAM_BOT_TOKEN;
+const TG = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : null;
 
 const STRINGS = {
     en: {
@@ -340,22 +345,66 @@ async function handleUpdate(u) {
     return handleText(chatId, s, text);
 }
 
+export async function registerWebhook({ baseUrl = BOT_ENV.TELEGRAM_WEBHOOK_URL, path = BOT_ENV.TELEGRAM_WEBHOOK_PATH, secret = BOT_ENV.TELEGRAM_WEBHOOK_SECRET } = {}) {
+    if (!TELEGRAM_BOT_TOKEN) return { ok: false, reason: 'missing_token' };
+    if (!baseUrl) return { ok: false, reason: 'missing_base_url' };
+    const url = new URL(path, baseUrl).toString();
+    const res = await fetch(`${TG}/setWebhook`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url, secret_token: secret || '' })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.ok) {
+        console.error('Telegram setWebhook failed:', data || res.statusText);
+        return { ok: false, reason: 'telegram_error', data };
+    }
+    return { ok: true, url };
+}
+
+export async function processTelegramWebhook(body, { secret } = {}) {
+    if (!body || !body.update_id) return { ok: false, reason: 'empty_update' };
+    const expected = secret || BOT_ENV.TELEGRAM_WEBHOOK_SECRET || BOT_ENV.INTERNAL_KEY || '';
+    if (expected && body.secret_token && body.secret_token !== expected) {
+        return { ok: false, reason: 'secret_mismatch' };
+    }
+    await handleUpdate(body);
+    return { ok: true };
+}
+
 async function main() {
-    console.log(`INCLUSIVE Telegram bot running, talking to ${API_URL}${INTERNAL_KEY ? ' (trusted)' : ' (no INTERNAL_KEY set — subject to normal rate limits)'}`);
-    let offset = 0;
-    for (;;) {
-        const updates = await tg('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'callback_query'] });
-        if (updates === null) { await sleep(3000); continue; }
-        for (const u of updates) {
-            offset = u.update_id + 1;
-            handleUpdate(u).catch((e) => {
-                console.error('handleUpdate error:', e && e.message ? e.message : 'unknown error');
-                const chatId = u.message && u.message.chat ? u.message.chat.id :
-                    u.callback_query && u.callback_query.message && u.callback_query.message.chat ? u.callback_query.message.chat.id : null;
-                if (chatId) send(chatId, t(session(chatId), 'error')).catch(() => {});
-            });
+    if (!TELEGRAM_BOT_TOKEN) {
+        console.error('TELEGRAM_BOT_TOKEN is not set. Export it before starting the Telegram bot.');
+        process.exit(1);
+    }
+    if (BOT_ENV.TELEGRAM_POLLING || !BOT_ENV.TELEGRAM_WEBHOOK_URL) {
+        console.log(`INCLUSIVE Telegram bot running in polling mode, talking to ${API_URL}${INTERNAL_KEY ? ' (trusted)' : ' (no INTERNAL_KEY set — subject to normal rate limits)'}`);
+        let offset = 0;
+        for (;;) {
+            const updates = await tg('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'callback_query'] });
+            if (updates === null) { await sleep(3000); continue; }
+            for (const u of updates) {
+                offset = u.update_id + 1;
+                handleUpdate(u).catch((e) => {
+                    console.error('handleUpdate error:', e && e.message ? e.message : 'unknown error');
+                    const chatId = u.message && u.message.chat ? u.message.chat.id :
+                        u.callback_query && u.callback_query.message && u.callback_query.message.chat ? u.callback_query.message.chat.id : null;
+                    if (chatId) send(chatId, t(session(chatId), 'error')).catch(() => {});
+                });
+            }
         }
+    } else {
+        console.log(`INCLUSIVE Telegram bot running in webhook mode at ${BOT_ENV.TELEGRAM_WEBHOOK_URL}${BOT_ENV.TELEGRAM_WEBHOOK_PATH}`);
+        const result = await registerWebhook();
+        if (!result.ok) {
+            console.error('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL and TELEGRAM_BOT_TOKEN.');
+            process.exit(1);
+        }
+        // Keep the process alive for the server to serve webhook requests when this file is run directly.
+        setInterval(() => {}, 60000);
     }
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('telegram/bot.js')) {
+    main();
+}
