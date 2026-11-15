@@ -474,7 +474,6 @@ test('HTTP: every error uses the same { error: { code, message } } shape', async
       assert.equal(body.error.code, code);
       assert.equal(typeof body.error.message, 'string');
     }
-    // CORS allowlist: an allowed origin is echoed, a stranger gets no header
     const ok = await fetch(`${base}/health`, { headers: { origin: 'https://partner.example' } });
     assert.equal(ok.headers.get('access-control-allow-origin'), 'https://partner.example');
     const stranger = await fetch(`${base}/health`, { headers: { origin: 'https://evil.example' } });
@@ -529,21 +528,28 @@ test('widget parses, stays small, and is served safely', async () => {
   assert.equal(panel._launcher.focused, true);
   assert.ok(src.length < 70 * 1024, 'widget should stay small for 3G');
   assert.match(src, /MediaRecorder/);
-  assert.match(src, /data-k="speechLanguage"/);
   assert.match(src, /data-k="cancelRecording"/);
   assert.match(src, /\/v1\/speech\/transcribe/);
   assert.match(src, /\/v1\/speech\/synthesize/);
-  for (const lang of ['ti', 'om', 'so', 'ar']) {
-    assert.match(src, new RegExp(`data-l="${lang}"`));
-    assert.match(src, new RegExp(`value="${lang}"`));
+  
+  // v1.3.5 uses a single language toggle that cycles through all six languages
+  assert.match(src, /LANG_CYCLE/);
+  assert.match(src, /LANG_CYCLE = \['en', 'am', 'ti', 'om', 'so', 'ar'\]/);
+  assert.match(src, /id="langToggle"/);
+  assert.match(src, /id="langCode"/);
+  for (const lang of ['en', 'am', 'ti', 'om', 'so', 'ar']) {
+    assert.match(src, new RegExp(`LANG_SHORT[^}]*\\b${lang}:`));
   }
   assert.match(src, /attachShadow\(\{ mode: 'open' \}\)/);
-  assert.match(src, /:host\{position:fixed/);
+  
+  // v1.3.5 prefixes :host with all:initial, then position:fixed
+  assert.match(src, /:host\{[^}]*position:fixed/);
   assert.match(src, /aria-expanded="false"/);
   assert.match(src, /data-k="closeChat"/);
   assert.match(src, /Escape/);
   assert.match(src, /request\.context = this\._courseContext/);
   assert.match(src, /setCourseContext\(context\)/);
+  
   await withServer(baseCfg, async (base) => {
     const js = await fetch(`${base}/widget/inclusive-assistant.v1.js`);
     assert.equal(js.status, 200);
@@ -577,7 +583,6 @@ test('handoff: learner and person can talk, with auth and privacy checks', async
 
     assert.equal((await post(`/v1/handoff/${id}/messages`, { text: 'hello' }, token)).status, 201);
 
-    // The learner's long poll is released the moment the person replies.
     const pending = get(`/v1/handoff/${id}?after=1&wait=5`, token).then((r) => r.json());
     await new Promise((r) => setTimeout(r, 50));
     assert.equal((await post(`/v1/agent/handoffs/${id}/messages`, { text: 'Hi, how can I help?' }, AK)).status, 201);
@@ -628,12 +633,10 @@ test('internal key bypasses the per-IP chat rate limit, a wrong key does not', a
   await withServer({ ...baseCfg, rateLimitPerMin: 2, internalKey: 'bot-secret-123456' }, async (base) => {
     const post = (headers) => fetch(`${base}/v1/chat`, { method: 'POST', headers, body: JSON.stringify({ message: 'find my courses' }) });
 
-    // Trusted requests never touch the per-IP counter, so many in a row all succeed.
     for (let i = 0; i < 5; i++) {
       assert.equal((await post({ 'x-internal-key': 'bot-secret-123456' })).status, 200, `trusted request ${i + 1} should succeed`);
     }
 
-    // A wrong key is untrusted and falls under the normal per-IP limit (2/min).
     assert.equal((await post({ 'x-internal-key': 'wrong' })).status, 200);
     assert.equal((await post({ 'x-internal-key': 'wrong' })).status, 200);
     assert.equal((await post({ 'x-internal-key': 'wrong' })).status, 429, 'a wrong key does not bypass the limit');
