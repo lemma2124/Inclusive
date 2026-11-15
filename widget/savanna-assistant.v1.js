@@ -601,10 +601,8 @@
       try {
         var request = {
           message: text,
-          lang: lang,
-          // Do not send history if we are answering from a specific lesson page context.
-          // This forces the AI to answer each question independently.
-          history: this._courseContext ? [] : this._history.slice(-4)
+          lang: lang
+          // We are intentionally not sending history to keep answers isolated.
         };
         if (this._courseContext) { request.context = this._courseContext; }
         var data = await this._call('POST', '/v1/chat', request, '', 25000);
@@ -846,15 +844,66 @@
     }
 
     _stopMic() {
-      if (this._rec) { try { this._rec.stop(); } catch (e) { /* already stopped */ } }
+      if (this._rec) {
+        try { this._rec.stop(); } catch (e) { }
+        this._rec = null;
+      }
       if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
         this._cancelRecordingFlag = true;
-        try { this._mediaRecorder.stop(); } catch (e) { /* already stopped */ }
+        try { this._mediaRecorder.stop(); } catch (e) { }
       }
     }
 
     _toggleMic() {
       var self = this;
+      var lang = this._lang();
+
+      // 1. If the language is English, use the browser's free native recognition
+      if (lang === 'en') {
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { this._setStatus(this._t('micUnsupported')); return; }
+
+        if (this._rec) { this._stopMic(); return; }
+        this._stopSpeak();
+
+        var rec = new SR();
+        rec.lang = 'en-US';
+        rec.interimResults = false;
+        rec.continuous = false;
+        this._rec = rec;
+
+        rec.onstart = function () {
+          self._mic.setAttribute('aria-pressed', 'true');
+          self._setStatus(self._t('listening'));
+        };
+
+        rec.onresult = function (e) {
+          var t = '';
+          for (var i = 0; i < e.results.length; i++) { t += e.results[i][0].transcript; }
+          if (t.trim()) {
+            self._q.value = self._q.value ? self._q.value + ' ' + t.trim() : t.trim();
+            self._heard = true;
+          }
+        };
+
+        rec.onerror = function (e) {
+          self._setStatus(self._t(e.error === 'not-allowed' ? 'micDenied' : 'micUnsupported'));
+        };
+
+        rec.onend = function () {
+          self._rec = null;
+          self._mic.setAttribute('aria-pressed', 'false');
+          if (self._heard) {
+            self._setStatus(self._t('speechReady'));
+            self._q.focus();
+          }
+        };
+
+        try { rec.start(); } catch (e) { self._setStatus(self._t('micUnsupported')); }
+        return;
+      }
+
+      // 2. For Amharic/Oromo/Tigrinya, record audio and send to Addis AI
       if (this._mediaRecorder && this._mediaRecorder.state === 'recording') {
         this._setStatus(this._t('transcribing'));
         this._mediaRecorder.stop();
@@ -864,9 +913,11 @@
         this._setStatus(this._t('micUnsupported'));
         return;
       }
+
       this._stopSpeak();
       this._discardRecording();
       this._setStatus(this._t('connecting'));
+
       navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
         if (!self.isConnected) { stream.getTracks().forEach(function (track) { track.stop(); }); return; }
         var preferred = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
@@ -876,17 +927,14 @@
         }
         var recorder;
         try { recorder = new window.MediaRecorder(stream, mimeType ? { mimeType: mimeType } : undefined); }
-        catch (e) {
-          stream.getTracks().forEach(function (track) { track.stop(); });
-          self._setStatus(self._t('micUnsupported'));
-          return;
-        }
+        catch (e) { stream.getTracks().forEach(function (track) { track.stop(); }); self._setStatus(self._t('micUnsupported')); return; }
+
         self._mediaStream = stream;
         self._mediaRecorder = recorder;
         self._audioChunks = [];
         self._cancelRecordingFlag = false;
         recorder.ondataavailable = function (event) { if (event.data && event.data.size) { self._audioChunks.push(event.data); } };
-        recorder.onerror = function () { self._micError = true; self._setStatus(self._t('micUnsupported')); };
+
         recorder.onstart = function () {
           self._mic.setAttribute('aria-pressed', 'true');
           self._mic.setAttribute('data-k', 'stopRecording');
@@ -900,6 +948,7 @@
             }
           }, 30000);
         };
+
         recorder.onstop = function () {
           clearTimeout(self._recordingTimer);
           self._recordingTimer = 0;
@@ -910,6 +959,7 @@
           self._mic.setAttribute('data-k', 'mic');
           self._fill(self.shadowRoot);
           self._cancelMic.hidden = true;
+
           if (self._cancelRecordingFlag) {
             self._audioChunks = [];
             self._cancelRecordingFlag = false;
@@ -919,16 +969,10 @@
           var blob = new Blob(self._audioChunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
           self._audioChunks = [];
           if (!blob.size) { self._setStatus(self._t('micNoSpeech')); return; }
-          if (blob.size > 8 * 1024 * 1024) { self._setStatus(self._t('micTooLarge')); return; }
           self._transcribe(blob);
         };
         try { recorder.start(250); }
-        catch (e) {
-          stream.getTracks().forEach(function (track) { track.stop(); });
-          self._mediaStream = null;
-          self._mediaRecorder = null;
-          self._setStatus(self._t('micUnsupported'));
-        }
+        catch (e) { stream.getTracks().forEach(function (track) { track.stop(); }); self._mediaRecorder = null; self._setStatus(self._t('micUnsupported')); }
       }).catch(function (error) {
         self._setStatus(error && error.name === 'NotAllowedError' ? self._t('micDenied') : self._t('micUnsupported'));
       });

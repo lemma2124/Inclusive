@@ -50,7 +50,7 @@ function normalizeCourseContext(context) {
     catch { throw contextError('Course context URL must be an absolute HTTP or HTTPS URL.'); }
     const localHttp = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
     if ((!['https:', 'http:'].includes(parsed.protocol) || (parsed.protocol === 'http:' && !localHttp)) ||
-        parsed.username || parsed.password) {
+      parsed.username || parsed.password) {
       throw contextError('Course context URL must use HTTPS and cannot include credentials.');
     }
     parsed.search = '';
@@ -111,9 +111,10 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     }
 
     const passages = hits.map((h) => h.passage);
+
+    // We only send the current question to the AI.
+    // The course context (passages) already contains the knowledge it needs.
     const messages = [
-      ...history.slice(-4).filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-        .map((m) => ({ role: m.role, content: m.content.slice(0, 600) })),
       { role: 'user', content: asked }
     ];
     const out = await router.generate({ system: buildSystemPrompt(learnerLang, passages), messages, passages, lang: learnerLang });
