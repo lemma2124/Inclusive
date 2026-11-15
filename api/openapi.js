@@ -25,7 +25,18 @@ export const openapi = {
         properties: {
           message: { type: 'string', maxLength: 1000 },
           lang: { type: 'string', enum: ['en', 'am', 'ti', 'om', 'so', 'ar'], description: 'Optional reply language. Detected from the message if omitted.' },
-          history: { type: 'array', maxItems: 4, items: { type: 'object', properties: { role: { enum: ['user', 'assistant'] }, content: { type: 'string' } } } }
+          history: { type: 'array', maxItems: 4, items: { type: 'object', properties: { role: { enum: ['user', 'assistant'] }, content: { type: 'string' } } } },
+          context: {
+            type: 'object',
+            description: 'Optional current course-page excerpt supplied by the embedding host. It is retrieved before any AI call.',
+            required: ['text'],
+            properties: {
+              title: { type: 'string', maxLength: 160 },
+              text: { type: 'string', maxLength: 1000 },
+              url: { type: 'string', format: 'uri', maxLength: 1024 },
+              lang: { type: 'string', enum: ['en', 'am'], default: 'en' }
+            }
+          }
         }
       },
       ChatResponse: {

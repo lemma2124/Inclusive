@@ -33,7 +33,6 @@
     .tip { margin:.9rem 0 0; color:var(--muted); font-size:.93rem; }
     .language-note { margin:0; color:var(--muted); }
     .language-note strong { color:var(--fg); }
-    .planned { display:inline-block; margin-top:.75rem; padding:.25rem .55rem; color:var(--muted); background:var(--soft); border-radius:999px; font-size:.78rem; font-weight:700; }
     .link-card { display:grid; gap:.7rem; }
     .link-card p { margin:0; color:var(--muted); }
     a { color:var(--accent); font-weight:650; text-decoration-thickness:.08em; text-underline-offset:.18em; }
@@ -70,6 +69,7 @@
     </header>
 
     <div class="layout">
+      <!-- Floating by default; add mode="inline" to dock it into this card. -->
       <section class="card assistant-card" id="assistant" aria-label="INCLUSIVE learning assistant">
         <inclusive-assistant lang="en"></inclusive-assistant>
       </section>
@@ -81,7 +81,7 @@
             <li>How do I check my score?</li>
             <li lang="am">ውጤቴን እንዴት ማየት እችላለሁ?</li>
           </ul>
-          <p class="tip">Choose a language, type a question, or try voice input if your browser supports it.</p>
+          <p class="tip">Open the assistant with the floating button, choose a language, then type or use voice input if your browser supports it.</p>
         </section>
         <section class="card">
           <h2>Languages</h2>
@@ -101,13 +101,12 @@
 
     <section class="card install" aria-labelledby="install-heading">
       <h2 id="install-heading">Add the assistant to a website</h2>
-      <p>Embed the web component with two lines. No build step is required.</p>
+      <p>Embed the web component with two lines. No build step is required. It floats bottom-right by default; add <code>mode="inline"</code> to dock it in place.</p>
       <pre tabindex="0"><code>&lt;script src="https://YOUR-HOST/widget/inclusive-assistant.v1.js" defer&gt;&lt;/script&gt;
     &lt;inclusive-assistant lang="en"&gt;&lt;/inclusive-assistant&gt;</code></pre>
     </section>
   </main>
   <script>
-    // Settings in, events out: the host page can listen to the widget.
     document.addEventListener('inclusive-assistant:answer', function (e) { console.log('answer', e.detail); });
     document.addEventListener('inclusive-assistant:escalate', function (e) { console.log('escalate', e.detail); });
     document.addEventListener('inclusive-assistant:error', function (e) { console.log('error', e.detail); });

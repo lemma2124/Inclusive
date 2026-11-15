@@ -56,11 +56,16 @@ export class Retriever {
     this.count = passages.length;
   }
 
-  search(query, lang = 'en', { limit = 3, minCoverage = 0.3 } = {}) {
+  search(query, lang = 'en', { limit = 3, minCoverage = 0.3, extraPassages = [] } = {}) {
     const attempt = (l) => {
       const idx = this.byLang.get(l);
-      if (!idx) return [];
-      return idx.search(query, limit).filter((r) => r.coverage >= minCoverage);
+      const hits = idx ? idx.search(query, limit).filter((r) => r.coverage >= minCoverage) : [];
+      if (!extraPassages.length) return hits;
+
+      const contextHits = new Bm25Index(extraPassages)
+        .search(query, limit)
+        .filter((r) => r.coverage >= minCoverage);
+      return [...contextHits, ...hits].slice(0, limit);
     };
     let hits = attempt(lang);
     let usedLang = lang;
@@ -68,6 +73,6 @@ export class Retriever {
       hits = attempt('en');
       usedLang = 'en';
     }
-    return { hits, lang: usedLang };
+    return { hits, lang: hits.length ? hits[0].passage.lang : usedLang };
   }
 }

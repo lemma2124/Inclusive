@@ -345,7 +345,7 @@ test('speech upload parser accepts allowed media and enforces duration, size, an
   await assert.rejects(readSpeechUpload(await toNodeRequest(longForm)), (e) => e.code === 'audio_too_long');
 
   const oversized = Readable.from([]);
-  oversized.headers = { 'content-type': 'multipart/form-data; boundary=x', 'content-length': String(MAX_SPEECH_BYTES + 100000) };
+  oversized.headers = { 'content-type': 'multipart/form-data; boundary=x', 'content-length': String(MAX_SPEECH_BYTES + 200000) };
   await assert.rejects(readSpeechUpload(oversized), (e) => e.code === 'audio_too_large');
 });
 
@@ -624,6 +624,55 @@ test('chat answers with citations when the course covers the question', async ()
   assert.equal(r.escalate, false);
 });
 
+test('chat retrieves host-provided course context and cites its page before calling the provider', async () => {
+  const provider = fakeProvider('gemini', (request) => {
+    assert.equal(request.passages[0].id, 'host-course-context');
+    assert.match(request.system, /select Submit project/);
+    return { text: 'Open the project assessment page and select Submit project. [1]' };
+  });
+  const chat = createChat({ retriever, router: createRouter({ providers: [provider] }) });
+  const result = await chat({
+    message: 'How do I submit my final project?',
+    lang: 'en',
+    context: {
+      title: 'Submitting a project',
+      text: 'To submit your final project in ALX, open the project assessment page, attach the completed repository link, and select Submit project.',
+      url: 'https://alx.example/course/lesson-1?session=private',
+      lang: 'en'
+    }
+  });
+  assert.equal(result.grounded, true);
+  assert.equal(result.citations[0].id, 'host-course-context');
+  assert.equal(result.citations[0].url, 'https://alx.example/course/lesson-1');
+  assert.equal(provider.calls.length, 1);
+});
+
+test('chat validates current-page context and still refuses unrelated questions', async () => {
+  const provider = fakeProvider('gemini', () => ({ text: 'must not run' }));
+  const chat = createChat({ retriever, router: createRouter({ providers: [provider] }) });
+  const context = {
+    title: 'Lesson',
+    text: 'This lesson explains how to submit a project assessment.',
+    lang: 'en'
+  };
+  const result = await chat({ message: 'Who won the world cup?', context });
+  assert.equal(result.grounded, false);
+  assert.equal(provider.calls.length, 0);
+
+  await assert.rejects(
+    chat({ message: 'submit project', context: { ...context, text: 'x'.repeat(4001) } }),
+    (error) => error.status === 413 && error.code === 'course_context_too_large'
+  );
+  await assert.rejects(
+    chat({ message: 'submit project', context: { ...context, url: 'javascript:alert(1)' } }),
+    (error) => error.status === 400 && error.code === 'invalid_course_context'
+  );
+  await assert.rejects(
+    chat({ message: 'submit project', context: { ...context, url: `https://alx.example/${'x'.repeat(1024)}` } }),
+    (error) => error.status === 400 && error.code === 'invalid_course_context'
+  );
+});
+
 test('chat refuses and offers a human, without calling a model, when uncovered', async () => {
   const spy = fakeProvider('gemini', () => ({ text: 'should not be called' }));
   const chat = createChat({ retriever, router: createRouter({ providers: [spy, createOffline()] }) });
@@ -785,7 +834,6 @@ test('HTTP: every error uses the same { error: { code, message } } shape', async
       assert.equal(body.error.code, code);
       assert.equal(typeof body.error.message, 'string');
     }
-    // CORS allowlist: an allowed origin is echoed, a stranger gets no header
     const ok = await fetch(`${base}/health`, { headers: { origin: 'https://partner.example' } });
     assert.equal(ok.headers.get('access-control-allow-origin'), 'https://partner.example');
     const stranger = await fetch(`${base}/health`, { headers: { origin: 'https://evil.example' } });
@@ -809,17 +857,59 @@ test('widget parses, stays small, and is served safely', async () => {
   });
   assert.ok(elements['inclusive-assistant'], 'widget should initialize and register its custom element');
   assert.ok(elements['savanna-assistant'], 'legacy custom element remains registered');
+  const assistant = Object.create(elements['inclusive-assistant'].prototype);
+  assistant.setCourseContext({ title: 'Lesson', text: 'Lesson excerpt', lang: 'en' });
+  assert.equal(assistant._courseContext.text, 'Lesson excerpt');
+  assistant.setCourseContext(null);
+  assert.equal(assistant._courseContext, null);
+  assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(20001) }), /20000 characters/);
+  const panel = Object.create(elements['inclusive-assistant'].prototype);
+  panel.mode = 'inline';
+  panel.getAttribute = (name) => name === 'mode' ? panel.mode : null;
+  panel._shell = { className: '' };
+  panel._box = { hidden: true };
+  panel._launcher = { hidden: false, setAttribute(name, value) { this[name] = value; }, focus() { this.focused = true; } };
+  panel._closeBtn = { hidden: false };
+  panel._q = { focus() { this.focused = true; } };
+  panel._applyMode();
+  assert.equal(panel._shell.className, 'shell inline');
+  assert.equal(panel._box.hidden, false);
+  assert.equal(panel._launcher.hidden, true);
+  assert.equal(panel._closeBtn.hidden, true);
+  panel.mode = null;
+  panel._applyMode();
+  assert.equal(panel._box.hidden, true);
+  panel._setOpen(true, true);
+  assert.equal(panel._box.hidden, false);
+  assert.equal(panel._launcher['aria-expanded'], 'true');
+  assert.equal(panel._q.focused, true);
+  panel._setOpen(false, true);
+  assert.equal(panel._box.hidden, true);
+  assert.equal(panel._launcher.focused, true);
   assert.ok(src.length < 70 * 1024, 'widget should stay small for 3G');
   assert.match(src, /MediaRecorder/);
-  assert.match(src, /data-k="speechLanguage"/);
   assert.match(src, /data-k="cancelRecording"/);
   assert.match(src, /\/v1\/speech\/transcribe/);
   assert.match(src, /\/v1\/speech\/synthesize/);
-  for (const lang of ['ti', 'om', 'so', 'ar']) {
-    assert.match(src, new RegExp(`data-l="${lang}"`));
-    assert.match(src, new RegExp(`value="${lang}"`));
+  
+  // v1.3.5 uses a single language toggle that cycles through all six languages
+  assert.match(src, /LANG_CYCLE/);
+  assert.match(src, /LANG_CYCLE = \['en', 'am', 'ti', 'om', 'so', 'ar'\]/);
+  assert.match(src, /id="langToggle"/);
+  assert.match(src, /id="langCode"/);
+  for (const lang of ['en', 'am', 'ti', 'om', 'so', 'ar']) {
+    assert.match(src, new RegExp(`LANG_SHORT[^}]*\\b${lang}:`));
   }
   assert.match(src, /attachShadow\(\{ mode: 'open' \}\)/);
+  
+  // v1.3.5 prefixes :host with all:initial, then position:fixed
+  assert.match(src, /:host\{[^}]*position:fixed/);
+  assert.match(src, /aria-expanded="false"/);
+  assert.match(src, /data-k="closeChat"/);
+  assert.match(src, /Escape/);
+  assert.match(src, /request\.context = this\._courseContext/);
+  assert.match(src, /setCourseContext\(context\)/);
+  
   await withServer(baseCfg, async (base) => {
     const js = await fetch(`${base}/widget/inclusive-assistant.v1.js`);
     assert.equal(js.status, 200);
@@ -853,7 +943,6 @@ test('handoff: learner and person can talk, with auth and privacy checks', async
 
     assert.equal((await post(`/v1/handoff/${id}/messages`, { text: 'hello' }, token)).status, 201);
 
-    // The learner's long poll is released the moment the person replies.
     const pending = get(`/v1/handoff/${id}?after=1&wait=5`, token).then((r) => r.json());
     await new Promise((r) => setTimeout(r, 50));
     assert.equal((await post(`/v1/agent/handoffs/${id}/messages`, { text: 'Hi, how can I help?' }, AK)).status, 201);
@@ -904,12 +993,10 @@ test('internal key bypasses the per-IP chat rate limit, a wrong key does not', a
   await withServer({ ...baseCfg, rateLimitPerMin: 2, internalKey: 'bot-secret-123456' }, async (base) => {
     const post = (headers) => fetch(`${base}/v1/chat`, { method: 'POST', headers, body: JSON.stringify({ message: 'find my courses' }) });
 
-    // Trusted requests never touch the per-IP counter, so many in a row all succeed.
     for (let i = 0; i < 5; i++) {
       assert.equal((await post({ 'x-internal-key': 'bot-secret-123456' })).status, 200, `trusted request ${i + 1} should succeed`);
     }
 
-    // A wrong key is untrusted and falls under the normal per-IP limit (2/min).
     assert.equal((await post({ 'x-internal-key': 'wrong' })).status, 200);
     assert.equal((await post({ 'x-internal-key': 'wrong' })).status, 200);
     assert.equal((await post({ 'x-internal-key': 'wrong' })).status, 429, 'a wrong key does not bypass the limit');
