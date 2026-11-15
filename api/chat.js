@@ -9,7 +9,7 @@ const LANG_NAME = {
   ar: 'Arabic (العربية)'
 };
 const SUPPORTED_LANGUAGES = new Set(Object.keys(LANG_NAME));
-const MAX_COURSE_CONTEXT_BYTES = 4000;
+const MAX_COURSE_CONTEXT_BYTES = 20000;
 
 function contextError(message, status = 400, code = 'invalid_course_context') {
   return Object.assign(new Error(message), { status, code });
@@ -119,8 +119,9 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     ];
     const out = await router.generate({ system: buildSystemPrompt(learnerLang, passages), messages, passages, lang: learnerLang });
 
-    if (out.provider === 'offline' && contentLang !== learnerLang) {
-      return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: 'offline', lang: learnerLang, contentLang, note: 'translation_unavailable' };
+     // NEW: Prevent crash if the AI returns an empty or invalid response
+    if (!out || typeof out.text !== 'string' || !out.text.trim()) {
+      return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: out.provider || 'none', lang: learnerLang };
     }
 
     if (/^\s*NO_ANSWER/.test(out.text)) {
