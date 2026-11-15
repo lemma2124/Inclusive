@@ -97,6 +97,9 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
   return async function chat({ message, lang, history = [], context }) {
     const asked = String(message || '').trim().slice(0, 1000);
     if (!asked) throw Object.assign(new Error('message is required'), { status: 400, code: 'message_required' });
+    if (retrievalQuery !== undefined && (typeof retrievalQuery !== 'string' || !retrievalQuery.trim())) {
+      throw Object.assign(new Error('retrievalQuery must be a non-empty string'), { status: 400, code: 'invalid_retrieval_query' });
+    }
     const learnerLang = SUPPORTED_LANGUAGES.has(lang) ? lang : detectLang(asked);
     const courseContext = normalizeCourseContext(context);
 
