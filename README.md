@@ -216,6 +216,31 @@ cp .env.example .env
 
 Keep `.env` private. Never commit API keys, Telegram tokens, or other credentials to GitHub. Set a strong `AGENT_KEY` to enable the support console. Set `SMS_INBOUND_KEY` to enable the SMS simulator and inbound route. Configure only the external providers you intend to use.
 
+### Deploy to Render
+
+This project is already compatible with a Render Web Service that runs a Node app:
+
+- Build command: `npm install`
+- Start command: `npm start`
+- Node runtime: `20`
+- Port: Render sets `PORT`; the server reads it automatically
+
+A deployment config is included in [render.yaml](render.yaml). After connecting the GitHub repo in Render, add the secret environment variables you need in the dashboard:
+
+```env
+GEMINI_API_KEY=
+GROQ_API_KEY=
+ADDIS_API_KEY=
+TELEGRAM_BOT_TOKEN=
+SMS_INBOUND_KEY=
+AGENT_KEY=
+INTERNAL_KEY=
+AI_PROVIDERS=gemini,ollama,offline
+CORS_ORIGIN=*
+```
+
+If you want Telegram or the protected staff console enabled, set those values before deployment. Render can generate `AGENT_KEY` and `INTERNAL_KEY` automatically from the config, but you should replace them with your own long random values in production.
+
 ### Optional local Ollama setup
 
 The sample `.env.example` tries Gemini first, then Ollama. Configure `GEMINI_API_KEY` to enable Gemini; otherwise it is skipped. Install Ollama and pull its configured example model if using that provider:
