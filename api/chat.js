@@ -35,12 +35,16 @@ export function buildSystemPrompt(lang, passages) {
 }
 
 export function createChat({ retriever, router, minCoverage = 0.3 }) {
-  return async function chat({ message, lang, history = [] }) {
+  return async function chat({ message, lang, history = [], retrievalQuery }) {
     const asked = String(message || '').trim().slice(0, 1000);
     if (!asked) throw Object.assign(new Error('message is required'), { status: 400, code: 'message_required' });
+    if (retrievalQuery !== undefined && (typeof retrievalQuery !== 'string' || !retrievalQuery.trim())) {
+      throw Object.assign(new Error('retrievalQuery must be a non-empty string'), { status: 400, code: 'invalid_retrieval_query' });
+    }
     const learnerLang = SUPPORTED_LANGUAGES.has(lang) ? lang : detectLang(asked);
 
-    const { hits, lang: contentLang } = retriever.search(asked, learnerLang, { limit: 3, minCoverage });
+    const searchQuery = retrievalQuery === undefined ? asked : retrievalQuery.trim().slice(0, 1000);
+    const { hits, lang: contentLang } = retriever.search(searchQuery, learnerLang, { limit: 3, minCoverage });
     if (!hits.length) {
       // Nothing in the course covers this: do not call a model, offer a human.
       return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: 'none', lang: learnerLang };

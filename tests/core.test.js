@@ -435,6 +435,26 @@ test('Telegram downloads only Telegram-returned safe paths and reports unavailab
   assert.match(sent.at(-1).params.text, /Speech recognition|Speech service/);
 });
 
+test('Telegram reports speech authentication failures without logging provider details', async () => {
+  const sent = [];
+  const warnings = [];
+  const previousWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const runtime = createTelegramRuntime({
+      telegramCall: async (_method, params) => { sent.push(params); return true; },
+      downloadFile: async () => ({ audio: makeWav(), mimeType: 'audio/wav' }),
+      speech: { async transcribe() { throw Object.assign(new Error('private provider response'), { code: 'speech_auth_failed' }); } }
+    });
+    await runtime.processUpdate({ update_id: 9250, message: { chat: { id: 9250 }, voice: { file_id: 'private-file-id', file_size: 100, duration: 1, mime_type: 'audio/wav' } } });
+    assert.match(sent.at(-1).text, /could not authenticate/i);
+    assert.deepEqual(warnings, [['Telegram speech processing failed: speech_auth_failed']]);
+    assert.ok(!JSON.stringify(warnings).includes('private'));
+  } finally {
+    console.warn = previousWarn;
+  }
+});
+
 test('Telegram language buttons acknowledge callbacks and transcript can be corrected, canceled, or expire', async () => {
   const sent = [];
   const chatRequests = [];
@@ -519,16 +539,41 @@ test('Telegram jobs and accommodation flows disclose local listings and human fo
       return { answer: 'Career guidance from course material.', citations: [{ title: 'Local guide' }], escalate: false };
     }
   });
+  await runtime.processUpdate({ update_id: 9600, message: { chat: { id: 9601 }, text: '/language Afaan Oromoo' } });
   await runtime.processUpdate({ update_id: 9601, message: { chat: { id: 9601 }, text: '/jobs' } });
   assert.match(sent.at(-1).text, /not verified live vacancies/i);
   assert.ok(requests.some((request) => request.path === '/v1/jobs/subscribe'));
   assert.ok(requests.some((request) => request.path === '/v1/chat'));
+  const jobsRequest = requests.find((request) => request.path === '/v1/chat');
+  assert.equal(jobsRequest.body.lang, 'om');
+  assert.equal(jobsRequest.body.message, 'Odeeffannoo hojii argamu fi gorsa deeggarsa afeerraa hojii naaf agarsiisi.');
+  assert.equal(jobsRequest.body.retrievalQuery, 'Show available job information and interview accommodation guidance.');
 
-  await runtime.processUpdate({ update_id: 9602, message: { chat: { id: 9601 }, text: '/accommodation' } });
+  await runtime.processUpdate({ update_id: 9602, message: { chat: { id: 9601 }, text: '/language English' } });
+  await runtime.processUpdate({ update_id: 9603, message: { chat: { id: 9601 }, text: '/accommodation' } });
   assert.match(sent.at(-1).text, /cannot guarantee or arrange/i);
-  await runtime.processUpdate({ update_id: 9603, message: { chat: { id: 9601 }, text: 'I need an interpreter for an interview.' } });
+  await runtime.processUpdate({ update_id: 9604, message: { chat: { id: 9601 }, text: 'I need an interpreter for an interview.' } });
   assert.ok(requests.some((request) => request.path === '/v1/accommodations' && /interpreter/.test(request.body.request)));
   assert.match(sent.at(-1).text, /sent to a person/i);
+});
+
+test('Telegram voice transcript detection does not override an explicit language choice', async () => {
+  const chatRequests = [];
+  const runtime = createTelegramRuntime({
+    telegramCall: async () => true,
+    apiCall: async (_method, path, body) => {
+      if (path === '/v1/chat') chatRequests.push(body);
+      return { answer: 'Amharic course answer', citations: [], escalate: false };
+    },
+    downloadFile: async () => ({ audio: makeWav(), mimeType: 'audio/wav' }),
+    speech: { async transcribe() { return { text: 'How do I find my courses?', language: 'en' }; } }
+  });
+  await runtime.processUpdate({ update_id: 9260, message: { chat: { id: 9260 }, text: '/language Amharic' } });
+  await runtime.processUpdate({ update_id: 9261, message: { chat: { id: 9260 }, voice: { file_id: 'audio', file_size: 100, duration: 1, mime_type: 'audio/wav' } } });
+  await runtime.processUpdate({ update_id: 9262, callback_query: { id: 'submit-amharic', data: 'transcript_submit', message: { chat: { id: 9260 } } } });
+  assert.equal(runtime.getSession(9260).lang, 'am');
+  assert.equal(chatRequests[0].lang, 'am');
+  assert.equal(chatRequests[0].message, 'How do I find my courses?');
 });
 
 test('Telegram human support obtains consent, relays both ways, and ends cleanly', async () => {
@@ -610,6 +655,26 @@ test('offline provider does not return untranslated English course text as an Or
   assert.equal(result.escalate, true);
   assert.equal(result.provider, 'offline');
   assert.equal(result.answer, FALLBACK.om);
+});
+
+test('chat searches English job content with a separate query while asking the model in Afaan Oromo', async () => {
+  let request;
+  const provider = fakeProvider('gemini', (value) => {
+    request = value;
+    return { text: 'Odeeffannoo hojii [1]' };
+  });
+  const chat = createChat({ retriever, router: createRouter({ providers: [provider] }) });
+  const message = 'Odeeffannoo hojii argamu fi gorsa deeggarsa afeerraa hojii naaf agarsiisi.';
+  const result = await chat({
+    message,
+    retrievalQuery: 'Show available job information and interview accommodation guidance.',
+    lang: 'om'
+  });
+
+  assert.equal(result.grounded, true);
+  assert.equal(result.contentLang, 'en');
+  assert.equal(request.messages.at(-1).content, message);
+  assert.match(request.system, /Reply only in Afaan Oromo/);
 });
 
 test('chat preserves each requested language and instructs the provider to answer in that language', async () => {
