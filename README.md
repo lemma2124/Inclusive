@@ -4,7 +4,7 @@
 
 **INCLUSIVE** is an accessibility-focused digital platform intended to make learning, information, and career support easier to access for learners and underserved communities.
 
-The current application combines a course-grounded assistant, multilingual web chat, optional Addis AI speech services on the web, career-support workflows, and human assistance through a web interface, Telegram text bot, and SMS text route. It searches curated content before answering course questions and offers human support when its knowledge base cannot support a reliable answer.
+The current application combines a course-grounded assistant, multilingual web chat, optional Addis AI speech services on the web and Telegram, career-support workflows, and human assistance through a web interface, Telegram bot, and SMS text route. It searches curated content before answering course questions and offers human support when its knowledge base cannot support a reliable answer.
 
 > **Our guiding principle: Reliable information first. AI assistance second. Human support whenever needed.**
 
@@ -57,11 +57,14 @@ For example, `AI_PROVIDERS=gemini,ollama,offline` tries Gemini first when `GEMIN
 
 ### 2.4 Addis AI Speech-to-Text and Text-to-Speech
 
-Addis AI provides optional speech capabilities for the web widget:
+Addis AI provides optional speech capabilities for the web widget and Telegram:
 
 - Learners can start and cancel a short recording after granting microphone permission.
 - Addis Scribe converts the recording into text; learners can review and edit the transcript before submitting it as a chat question.
 - Learners can request Addis Voices audio for eligible answers.
+- Telegram users can send voice notes or audio files up to 8 MB and 30 seconds; audio is downloaded through Telegram's file API, validated, transcribed server-side, then sent to the same course-chat API as typed questions.
+- Telegram replies remain text-first. `/voice` also sends spoken audio where Addis has a voice; `/text` disables spoken replies. Addis TTS supports Amharic, Afaan Oromo, and Tigrinya, but not English. If speech is unavailable, the bot keeps the text answer and explains the limitation.
+- Telegram uses the saved language choice for transcription, or the Telegram account language as the initial hint. Text language detection is conservative; ambiguous messages ask the learner to choose a language.
 - Generated audio has user-operated playback controls, and the answer remains available as text.
 - The API key remains in the backend environment and is not sent to the browser.
 - Speech is optional and user-initiated. It may incur usage charges.
@@ -83,7 +86,7 @@ Job content should be reviewed and updated by maintainers. Do not treat sample/l
 ### 2.7 Communication Channels
 
 - **Web application and embeddable widget:** primary learner interface, course chat, accommodations, and web speech controls.
-- **Telegram bot:** text-based course help, human-support flow, job-alert commands, and accommodation requests. Telegram voice-message processing is not implemented.
+- **Telegram bot:** course help, voice transcription, optional spoken replies, human-support flow, job-alert commands, and accommodation requests. Course content is reviewed in English and Amharic. Cloud providers are instructed to answer in English, Amharic, Afaan Oromo, or Tigrinya from retrieved material, but quality in Oromo and Tigrinya is not independently validated; offline mode offers a language-matched fallback instead of returning untranslated source text.
 - **SMS:** text-only route with a console simulator for local testing or a configurable outbound webhook adapter. SMS does not generate audio.
 - **Support console:** protected staff interface for handoffs and job-alert broadcasts.
 
@@ -267,15 +270,30 @@ The server uses port `8787` by default.
 | Health check | <http://localhost:8787/health> | Reports loaded content and service status. |
 | OpenAPI definition | <http://localhost:8787/v1/openapi.json> | Machine-readable API description. |
 
-### Optional Telegram bot
+### Telegram bot
 
-The bot runs separately from the API server. Configure `TELEGRAM_BOT_TOKEN` and `API_URL` in `.env`, leave the server running, then start the bot in another terminal:
+Render runs the API and Telegram webhook in the same service. Configure these variables in the Render dashboard, then deploy:
+
+| Variable | Purpose |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | BotFather token used by the bot and job-alert delivery. |
+| `TELEGRAM_WEBHOOK_URL` | Public HTTPS base URL for the Render service. |
+| `TELEGRAM_WEBHOOK_PATH` | Webhook route; defaults to `/telegram/webhook`. |
+| `TELEGRAM_WEBHOOK_SECRET` | Required shared secret; use 1-256 letters, digits, underscores, or hyphens. Do not reuse `INTERNAL_KEY`. |
+| `ADDIS_API_KEY` | Enables Telegram transcription and supported spoken replies. |
+| `AI_PROVIDERS` | Provider order. On Render use cloud providers plus `offline`, not loopback Ollama. |
+
+At startup the app registers the HTTPS webhook. It checks Telegram's `X-Telegram-Bot-Api-Secret-Token` header before reading the update. `/health` reports the providers actually instantiated, and startup logs warn when a configured cloud provider lacks a key or is omitted from `AI_PROVIDERS`.
+
+For local development, set `TELEGRAM_POLLING=true`, `TELEGRAM_BOT_TOKEN`, and `API_URL=http://127.0.0.1:8787`, leave `TELEGRAM_WEBHOOK_URL` empty, then run:
 
 ```sh
 npm run bot
 ```
 
-Telegram users must start a conversation with the bot before it can message them. Use HTTPS for deployed services and keep credentials in a secret manager.
+Polling and webhooks cannot be active for the same bot at the same time. Remove its configured webhook before using local polling, then restore the Render webhook after local testing. Telegram users must start a conversation with the bot before it can message them.
+
+The bot remembers language, text/voice mode, and learning history in process memory; these reset when Render restarts. Human handoffs and job-alert subscriptions are also in-memory in this demo deployment. Agent requests appear in the protected support console's live queue; there is no separate email or push notification integration.
 
 ---
 
@@ -297,6 +315,9 @@ See [.env.example](.env.example) for the full list and defaults.
 | `INTERNAL_KEY` | Optional shared secret for trusted internal clients such as Telegram. |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot credential; also used for Telegram job-alert delivery. |
 | `API_URL` | Backend base URL used by the Telegram bot. |
+| `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_PATH` | Public HTTPS webhook base URL and route for the single-service Render setup. |
+| `TELEGRAM_WEBHOOK_SECRET` | Required Telegram webhook auth token; only alphanumeric characters, `_`, and `-` are accepted. |
+| `TELEGRAM_POLLING` | Set to `true` only for local polling; leave unset/false for Render webhooks. |
 | `SMS_INBOUND_KEY` | Enables and protects inbound SMS and the SMS simulator; empty disables them. |
 | `SMS_PROVIDER` | `console` simulator or `webhook` outbound adapter. |
 | `SMS_WEBHOOK_URL`, `SMS_WEBHOOK_KEY` | Destination and optional authentication for webhook SMS delivery. |

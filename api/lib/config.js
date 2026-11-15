@@ -1,7 +1,8 @@
 export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 8787,
-    providers: (env.AI_PROVIDERS || 'gemini,ollama,offline').split(',').map((s) => s.trim()).filter(Boolean),
+    providers: [...new Set((env.AI_PROVIDERS || 'gemini,ollama,offline').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))],
+    nodeEnv: env.NODE_ENV || 'development',
     ollamaBaseUrl: env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
     ollamaModel: env.OLLAMA_MODEL || 'aya-expanse:8b',
     geminiKey: env.GEMINI_API_KEY || '',
@@ -22,7 +23,7 @@ export function loadConfig(env = process.env) {
     smsWebhookKey: env.SMS_WEBHOOK_KEY || '',
     telegramBotToken: env.TELEGRAM_BOT_TOKEN || '',
     telegramWebhookUrl: env.TELEGRAM_WEBHOOK_URL || '',
-    telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || env.INTERNAL_KEY || '',
+    telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET || '',
     telegramWebhookPath: env.TELEGRAM_WEBHOOK_PATH || '/telegram/webhook',
     contentDir: env.CONTENT_DIR || ''
   };

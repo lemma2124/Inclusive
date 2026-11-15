@@ -92,7 +92,7 @@ export function createHandoffStore({
       const id = randomUUID();
       const token = randomBytes(24).toString('hex');
       sessions.set(id, {
-        id, token, lang: lang === 'am' ? 'am' : 'en', question: clip(question, 1000),
+        id, token, lang: ['am', 'om', 'ti'].includes(lang) ? lang : 'en', question: clip(question, 1000),
         kind: kind === 'accommodation' ? 'accommodation' : 'support',
         transcript: cleanTranscript(transcript), status: 'waiting', messages: [], nextId: 1, createdAt: t, updatedAt: t
       });

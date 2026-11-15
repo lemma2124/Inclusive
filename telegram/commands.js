@@ -2,7 +2,7 @@ import { parseChannelLanguage } from '../api/sms/language.js';
 
 const COMMANDS = new Set([
   '/start', '/help', '/learn', '/jobs', '/support', '/human', '/language', '/lang',
-  '/end', '/unsubscribe', '/accommodation', '/cancel', '/en', '/am', '/om', '/ti'
+  '/end', '/unsubscribe', '/accommodation', '/cancel', '/en', '/am', '/om', '/ti', '/text', '/voice'
 ]);
 
 export function parseTelegramInput(value) {
