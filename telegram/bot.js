@@ -363,13 +363,22 @@ export async function registerWebhook({ baseUrl = BOT_ENV.TELEGRAM_WEBHOOK_URL, 
 }
 
 export async function processTelegramWebhook(body, { secret } = {}) {
-    if (!body || !body.update_id) return { ok: false, reason: 'empty_update' };
+    if (!body || !body.update_id) {
+        console.error('Telegram webhook received an empty or invalid update payload.', body);
+        return { ok: false, reason: 'empty_update' };
+    }
     const expected = secret || BOT_ENV.TELEGRAM_WEBHOOK_SECRET || BOT_ENV.INTERNAL_KEY || '';
     if (expected && body.secret_token && body.secret_token !== expected) {
+        console.error('Telegram webhook secret mismatch.', { receivedSecret: !!body.secret_token, expectedSecretPresent: !!expected });
         return { ok: false, reason: 'secret_mismatch' };
     }
-    await handleUpdate(body);
-    return { ok: true };
+    try {
+        await handleUpdate(body);
+        return { ok: true };
+    } catch (e) {
+        console.error('Telegram update processing failed:', e && e.stack ? e.stack : e);
+        return { ok: false, reason: 'processing_error', error: e && e.message ? e.message : String(e) };
+    }
 }
 
 async function main() {
