@@ -6,6 +6,16 @@ import { detectChannelLanguage, parseChannelLanguage } from '../api/sms/language
 import { applyTelegramLanguage, parseTelegramInput } from './commands.js';
 import { pathToFileURL } from 'node:url';
 
+const API_URL = process.env.API_URL || 'http://localhost:8787';
+const INTERNAL_KEY = process.env.INTERNAL_KEY || '';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TG = TELEGRAM_BOT_TOKEN ? `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}` : null;
+
+if (!TELEGRAM_BOT_TOKEN) {
+    console.error('TELEGRAM_BOT_TOKEN is not set. Export it before starting the Telegram bot.');
+    process.exit(1);
+}
+
 const STRINGS = {
     en: {
         welcome: 'Welcome to INCLUSIVE! Ask about your course in English or Amharic. Use /help for commands, /language to choose a language, /jobs for job information and alerts, or /support to request a person.',
