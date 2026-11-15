@@ -607,6 +607,13 @@
         if (this._courseContext) { request.context = this._courseContext; }
         var data = await this._call('POST', '/v1/chat', request, '', 25000);
         if (typeof data.answer !== 'string') { throw new Error('bad_response'); }
+        
+                // NEW: Warn in the console if Gemini failed and it fell back to offline
+        if (data.provider === 'offline') {
+          console.warn('⚠️ INCLUSIVE: Gemini is out of quota or failed. Using offline fallback.');
+        }
+        
+        
         var links = (data.citations || []).map(function (c) {
           return { text: c.title, href: self._href(c.url), lang: c.lang };
         });
