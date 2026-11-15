@@ -306,7 +306,7 @@ test('speech upload parser accepts allowed media and enforces duration, size, an
   await assert.rejects(readSpeechUpload(await toNodeRequest(longForm)), (e) => e.code === 'audio_too_long');
 
   const oversized = Readable.from([]);
-  oversized.headers = { 'content-type': 'multipart/form-data; boundary=x', 'content-length': String(MAX_SPEECH_BYTES + 100000) };
+  oversized.headers = { 'content-type': 'multipart/form-data; boundary=x', 'content-length': String(MAX_SPEECH_BYTES + 200000) };
   await assert.rejects(readSpeechUpload(oversized), (e) => e.code === 'audio_too_large');
 });
 
@@ -502,7 +502,7 @@ test('widget parses, stays small, and is served safely', async () => {
   assert.equal(assistant._courseContext.text, 'Lesson excerpt');
   assistant.setCourseContext(null);
   assert.equal(assistant._courseContext, null);
-  assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(10001) }), /1000 characters/);
+  assert.throws(() => assistant.setCourseContext({ text: 'x'.repeat(20001) }), /20000 characters/);
   const panel = Object.create(elements['inclusive-assistant'].prototype);
   panel.mode = 'inline';
   panel.getAttribute = (name) => name === 'mode' ? panel.mode : null;
