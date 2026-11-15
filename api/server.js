@@ -144,10 +144,20 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       if (req.method === 'OPTIONS') return send(204);
       if (GET && path === '/health') return send(200, { ok: true, passages: passages.length, providers: providers ? 'custom' : cfg.providers, humanHelp: Boolean(cfg.agentKey) });
       if (GET && path === '/v1/openapi.json') return send(200, openapi);
-      if (POST && path === cfg.telegramWebhookPath || cfg.telegramWebhookUrl && POST && path === new URL(cfg.telegramWebhookPath || '/telegram/webhook', cfg.telegramWebhookUrl).pathname) {
-        const body = await readJson(req);
-        await processTelegramWebhook(body, { secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
-        return send(200, { ok: true });
+      const telegramWebhookMatch = (POST && path === (cfg.telegramWebhookPath || '/telegram/webhook')) || (cfg.telegramWebhookUrl && POST && path === new URL(cfg.telegramWebhookPath || '/telegram/webhook', cfg.telegramWebhookUrl).pathname);
+      if (telegramWebhookMatch) {
+        try {
+          const body = await readJson(req);
+          const result = await processTelegramWebhook(body, { secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
+          if (!result.ok) {
+            console.error('Telegram webhook rejected update:', result);
+            return fail(400, result.reason || 'telegram_webhook_error', 'Telegram webhook rejected the update.');
+          }
+          return send(200, { ok: true });
+        } catch (e) {
+          console.error('Telegram webhook request failed:', e && e.stack ? e.stack : e);
+          return fail(400, 'telegram_webhook_error', e && e.message ? e.message : 'Telegram webhook request failed.');
+        }
       }
 
       // Addis AI speech stays server-side; uploaded audio is processed in memory only.
@@ -322,10 +332,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(cfg.port, async () => {
     console.log(`INCLUSIVE API on http://localhost:${cfg.port} (providers: ${cfg.providers.join(', ')})`);
     console.log(`Demo: http://localhost:${cfg.port}/demo   Support console: ${cfg.agentKey ? `http://localhost:${cfg.port}/agent` : 'OFF (set AGENT_KEY)'}`);
-    if (cfg.telegramBotToken && cfg.telegramWebhookUrl) {
-      const result = await registerWebhook({ baseUrl: cfg.telegramWebhookUrl, path: cfg.telegramWebhookPath || '/telegram/webhook', secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
-      if (result.ok) console.log(`Telegram webhook registered: ${result.url}`);
-      else console.warn('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL and TELEGRAM_BOT_TOKEN.');
+    if (!cfg.telegramBotToken) {
+      console.warn('Telegram bot is disabled: TELEGRAM_BOT_TOKEN is not set.');
+      return;
     }
+    if (!cfg.telegramWebhookUrl) {
+      console.warn('Telegram bot is running without a webhook URL. Set TELEGRAM_WEBHOOK_URL to register the webhook.');
+      return;
+    }
+    const result = await registerWebhook({ baseUrl: cfg.telegramWebhookUrl, path: cfg.telegramWebhookPath || '/telegram/webhook', secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
+    if (result.ok) console.log(`Telegram webhook registered: ${result.url}`);
+    else console.warn('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, and your Render environment.');
   });
 }
