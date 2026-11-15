@@ -9,7 +9,7 @@ const LANG_NAME = {
   ar: 'Arabic (العربية)'
 };
 const SUPPORTED_LANGUAGES = new Set(Object.keys(LANG_NAME));
-const MAX_COURSE_CONTEXT_BYTES = 20000;
+const MAX_COURSE_CONTEXT_BYTES = 150000;
 
 function contextError(message, status = 400, code = 'invalid_course_context') {
   return Object.assign(new Error(message), { status, code });
@@ -100,10 +100,26 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     const learnerLang = SUPPORTED_LANGUAGES.has(lang) ? lang : detectLang(asked);
     const courseContext = normalizeCourseContext(context);
 
+    // Split the huge page context into smaller, searchable chunks
+    let extraPassages = [];
+    if (courseContext) {
+      const rawText = courseContext.text;
+      // Split by double newlines, or single newlines if the text is dense
+      const chunks = rawText.split(/\n\s*\n|\n/).map(c => c.trim()).filter(c => c.length > 30);
+
+      extraPassages = chunks.map((chunk, index) => ({
+        id: `host-chunk-${index}`,
+        lang: courseContext.lang,
+        title: courseContext.title,
+        url: courseContext.url,
+        text: chunk
+      }));
+    }
+
     const { hits, lang: contentLang } = retriever.search(asked, learnerLang, {
       limit: 3,
       minCoverage,
-      extraPassages: courseContext ? [courseContext] : []
+      extraPassages: extraPassages // Now we pass the array of 50 small chunks!
     });
     if (!hits.length) {
       // Nothing in the course covers this: do not call a model, offer a human.
@@ -119,7 +135,7 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     ];
     const out = await router.generate({ system: buildSystemPrompt(learnerLang, passages), messages, passages, lang: learnerLang });
 
-     // NEW: Prevent crash if the AI returns an empty or invalid response
+    // NEW: Prevent crash if the AI returns an empty or invalid response
     if (!out || typeof out.text !== 'string' || !out.text.trim()) {
       return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: out.provider || 'none', lang: learnerLang };
     }

@@ -248,7 +248,7 @@
       if (!context || typeof context !== 'object' || typeof context.text !== 'string' || !context.text.trim()) {
         throw new TypeError('Course context must include non-empty text.');
       }
-      if (Array.from(context.text).length > 10000) {
+      if (Array.from(context.text).length > 50000) {
         throw new RangeError('Course context must be limited to a relevant excerpt of 1000 characters.');
       }
       this._courseContext = {
