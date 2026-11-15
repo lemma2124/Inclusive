@@ -237,7 +237,7 @@ On macOS or Linux:
 cp .env.example .env
 ```
 
-Keep `.env` private. Never commit API keys, Telegram tokens, or other credentials to GitHub. Set a strong `AGENT_KEY` to enable the support console. Set `SMS_INBOUND_KEY` to enable the SMS simulator and inbound route. Configure only the external providers you intend to use.
+Keep `.env` private. Never commit API keys, Telegram tokens, or other credentials to GitHub. Set a strong `AGENT_KEY` to enable the support console. Set `SMS_INBOUND_KEY` for the generic JSON SMS route and simulator. Telerivet uses its own webhook secret and Redis-backed queue. Configure only the external providers you intend to use.
 
 ### Deploy to Render
 
@@ -261,6 +261,16 @@ INTERNAL_KEY=
 AI_PROVIDERS=gemini,ollama,offline
 CORS_ORIGIN=*
 ```
+
+To enable Telerivet, first create a Render Key Value service running Redis 6.2 or newer (the worker uses Redis Streams and `XAUTOCLAIM`) and link its private connection URL as `REDIS_URL`. Then set `SMS_PROVIDER=telerivet`, `TELERIVET_API_KEY`, `TELERIVET_PROJECT_ID`, and `TELERIVET_WEBHOOK_SECRET` in the Render Web Service environment. Optionally set `TELERIVET_ROUTE_ID` if the Telerivet project has multiple sending routes. Keep all credentials in Render's environment settings; do not commit them.
+
+In the Telerivet project, add an incoming-message Webhook service pointing to `https://<your-render-service>.onrender.com/v1/sms/telerivet`, select incoming message events, and set its webhook secret to exactly the same value as `TELERIVET_WEBHOOK_SECRET`. The endpoint accepts Telerivet's `application/x-www-form-urlencoded` payload. Confirm an Ethiopian SMS route/SIM and account balance with Telerivet before testing; automated tests do not establish live delivery.
+
+The Telerivet queue stores completed message IDs and message state/content in Redis for 48 hours; dead-lettered messages (including phone numbers and message text) remain there until an operator retries them. Protect Redis access and the `AGENT_KEY` accordingly. The queue records durable queued/processing/retry/done/dead states and uses a renewable Redis lease so workers do not process the same job concurrently. Temporary provider/network failures receive up to five attempts with exponential delays (1, 2, 4, and 8 seconds); permanent errors and exhausted jobs move to a dead-letter stream. The worker recovers pending jobs after a restart. Conversation sessions and job-alert subscriptions still use the app's existing in-memory stores and reset on restart/deploy.
+
+The support console can inspect dead letters with `GET /v1/agent/sms/failed` and retry one with `POST /v1/agent/sms/failed/retry` and `{"messageId":"..."}`. Both routes require `AGENT_KEY`. If Telerivet accepts a send but the process crashes before Redis records completion, or an ambiguous timeout/error arrives after acceptance, recovery/retry can send a duplicate; the provider API does not provide an exactly-once guarantee here. A successful send API response also does not prove carrier delivery. Do not claim exactly-once delivery or real Ethiopian SIM delivery without device testing.
+
+When using Telerivet, the generic `/v1/sms/inbound` route remains separate and requires a non-empty `SMS_INBOUND_KEY`; the Telerivet webhook uses only `TELERIVET_WEBHOOK_SECRET`, checked with a constant-time comparison. Use at least 16 non-whitespace characters for the Telerivet webhook secret.
 
 If you want Telegram or the protected staff console enabled, set those values before deployment. Render can generate `AGENT_KEY` and `INTERNAL_KEY` automatically from the config, but you should replace them with your own long random values in production.
 
@@ -340,9 +350,13 @@ See [.env.example](.env.example) for the full list and defaults.
 | `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_PATH` | Public HTTPS webhook base URL and route for the single-service Render setup. |
 | `TELEGRAM_WEBHOOK_SECRET` | Required Telegram webhook auth token; only alphanumeric characters, `_`, and `-` are accepted. |
 | `TELEGRAM_POLLING` | Set to `true` only for local polling; leave unset/false for Render webhooks. |
-| `SMS_INBOUND_KEY` | Enables and protects inbound SMS and the SMS simulator; empty disables them. |
-| `SMS_PROVIDER` | `console` simulator or `webhook` outbound adapter. |
+| `SMS_INBOUND_KEY` | Protects the generic JSON inbound SMS route and the SMS simulator. |
+| `SMS_PROVIDER` | `console`, generic `webhook`, or `telerivet`. |
 | `SMS_WEBHOOK_URL`, `SMS_WEBHOOK_KEY` | Destination and optional authentication for webhook SMS delivery. |
+| `TELERIVET_API_KEY`, `TELERIVET_PROJECT_ID` | Telerivet REST API credentials and project identifier. |
+| `TELERIVET_ROUTE_ID` | Optional Telerivet sending route when a project has multiple routes. |
+| `TELERIVET_WEBHOOK_SECRET` | At least 16 non-whitespace characters; shared with the Telerivet incoming-message Webhook service. |
+| `REDIS_URL` | Render Key Value connection URL used for Telerivet queueing and message-ID deduplication. |
 | `CORS_ORIGIN` | `*` or a comma-separated origin allowlist. |
 | `RATE_LIMIT_PER_MIN` | Chat requests per IP per minute. |
 | `HANDOFF_RATE_LIMIT_PER_MIN` | Handoff requests per IP per minute. |
@@ -368,22 +382,26 @@ The complete route definitions and schemas are available at `/v1/openapi.json` w
 | `POST /v1/speech/synthesize` | Request an Addis Voices clip. | `ADDIS_API_KEY`, rate-limited |
 | `/v1/agent/handoffs` | List and manage learner support requests. | `AGENT_KEY` bearer token |
 | `POST /v1/agent/jobs/broadcast` | Broadcast a job alert. | `AGENT_KEY` bearer token |
-| `/v1/sms/inbound` | Receive an inbound SMS webhook request. | `SMS_INBOUND_KEY` bearer token |
+| `POST /v1/sms/inbound` | Generic JSON inbound SMS webhook. | `SMS_INBOUND_KEY` bearer token |
+| `POST /v1/sms/telerivet` | Receive and queue a Telerivet incoming SMS webhook. | Telerivet form `secret` |
 
 ---
 
 ## 10. SMS Integration
 
-The SMS route supports plain-text interaction. Its console adapter enables local simulation without a real SMS provider. A webhook adapter can be configured for an external gateway, but gateway request formats vary and may need provider-specific changes.
+The SMS runtime supports plain-text interaction and uses the same course-grounded chat service as the web app. Its console adapter enables local simulation without a real SMS provider. The generic webhook adapter remains available; Telerivet uses a provider-specific REST sender and incoming-message webhook.
 
 A typical integration flow is:
 
 1. A learner sends a text message to the SMS provider.
-2. The provider forwards the inbound message to the configured endpoint.
-3. The application validates the shared inbound key and processes the message.
-4. The response is sent through the configured adapter.
+2. Telerivet forwards the URL-encoded incoming-message event to `/v1/sms/telerivet`.
+3. The application verifies the configured webhook `secret`, queues the event in Redis, and returns HTTP 200 without waiting for AI.
+4. A queue worker passes the message and Telerivet message ID into the existing SMS runtime. Duplicate webhook IDs are rejected from the queue for 48 hours.
+5. The existing runtime handles the learner's command or question and sends replies through the Telerivet REST API.
 
-Configure `SMS_INBOUND_KEY` to enable the route. For real delivery, configure `SMS_PROVIDER=webhook`, `SMS_WEBHOOK_URL`, and any required `SMS_WEBHOOK_KEY`. The local simulator does not send real SMS messages. SMS does not use Addis TTS and remains text-only. Check provider support for inbound webhooks, local-language encoding, opt-out requirements, and message costs before production use.
+`HELP`, `JOBS`, `JOBS ON`, `JOBS OFF`, `STOP`, `START`, and English/Amharic language selection are supported. Existing `ALERTS`, `SUBSCRIBE`, and `UNSUBSCRIBE` aliases remain. Job-alert subscriptions and learner conversation sessions are still in memory and will reset on restart. The generic JSON route remains available when `SMS_INBOUND_KEY` is configured.
+
+The local simulator and mocked tests do not send real SMS messages. Amharic messages use Unicode encoding and may use more SMS segments. SMS remains text-only and does not use Addis TTS. Test with actual Ethiopian SIM cards and verify Telerivet route availability, sender restrictions, opt-out requirements, and costs before claiming live delivery.
 
 ---
 

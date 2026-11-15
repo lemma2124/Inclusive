@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "busboy": "^1.6.0",
-    "music-metadata": "^12.5.0"
+    "music-metadata": "^12.5.0",
+    "redis": "^6.3.1"
   }
 }
