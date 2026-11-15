@@ -34,13 +34,14 @@ const AGENT_RE = new RegExp(`^/v1/agent/handoffs(?:/${ID}(?:/(messages|close|sig
 const PAGES = { '/demo': 'demo.html', '/agent': 'agent.html', '/sms-demo': 'sms-demo.html' };
 
 export function buildProviders(cfg) {
+  const isLoopbackOllama = cfg.nodeEnv === 'production' && ['localhost', '127.0.0.1', '::1'].includes(new URL(cfg.ollamaBaseUrl || 'http://127.0.0.1:11434/v1').hostname);
   const registry = {
-    ollama: () => createOllama({ baseUrl: cfg.ollamaBaseUrl, model: cfg.ollamaModel }),
-    gemini: () => createGemini({ apiKey: cfg.geminiKey, model: cfg.geminiModel }),
-    groq: () => createOpenAICompatible({ name: 'groq', apiKey: cfg.groqKey, model: cfg.groqModel }),
+    ollama: () => isLoopbackOllama ? null : createOllama({ baseUrl: cfg.ollamaBaseUrl, model: cfg.ollamaModel }),
+    gemini: () => cfg.geminiKey ? createGemini({ apiKey: cfg.geminiKey, model: cfg.geminiModel }) : null,
+    groq: () => cfg.groqKey ? createOpenAICompatible({ name: 'groq', apiKey: cfg.groqKey, model: cfg.groqModel }) : null,
     offline: () => createOffline()
   };
-  const list = cfg.providers.filter((n) => registry[n]).map((n) => registry[n]());
+  const list = cfg.providers.filter((n) => registry[n]).map((n) => registry[n]()).filter(Boolean);
   if (!list.some((p) => p.name === 'offline')) list.push(createOffline()); // never run without a floor
   return list;
 }
@@ -88,7 +89,8 @@ const waitMs = (v) => Math.min(num(v), 25) * 1000;
 export function createApp(cfg = loadConfig(), { providers, speech: speechOverride } = {}) {
   const passages = loadPassages(cfg.contentDir || DEFAULT_CONTENT_DIR);
   const retriever = new Retriever(passages);
-  const router = createRouter({ providers: providers || buildProviders(cfg), timeoutMs: cfg.timeoutMs });
+  const activeProviders = providers || buildProviders(cfg);
+  const router = createRouter({ providers: activeProviders, timeoutMs: cfg.timeoutMs });
   const chat = createChat({ retriever, router, minCoverage: cfg.minCoverage });
   const speech = speechOverride || createAddisSpeech({ apiKey: cfg.addisApiKey, timeoutMs: 90000 });
   const store = createHandoffStore();
@@ -142,21 +144,29 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       const GET = req.method === 'GET';
       const POST = req.method === 'POST';
       if (req.method === 'OPTIONS') return send(204);
-      if (GET && path === '/health') return send(200, { ok: true, passages: passages.length, providers: providers ? 'custom' : cfg.providers, humanHelp: Boolean(cfg.agentKey) });
+      if (GET && path === '/health') return send(200, { ok: true, passages: passages.length, providers: activeProviders.map((provider) => provider.name), humanHelp: Boolean(cfg.agentKey) });
       if (GET && path === '/v1/openapi.json') return send(200, openapi);
       const telegramWebhookMatch = (POST && path === (cfg.telegramWebhookPath || '/telegram/webhook')) || (cfg.telegramWebhookUrl && POST && path === new URL(cfg.telegramWebhookPath || '/telegram/webhook', cfg.telegramWebhookUrl).pathname);
       if (telegramWebhookMatch) {
+        if (!cfg.telegramWebhookSecret) return fail(503, 'telegram_webhook_unconfigured', 'Telegram webhook authentication is not configured.');
+        const receivedSecret = req.headers['x-telegram-bot-api-secret-token'] || '';
+        if (!safeEqual(receivedSecret, cfg.telegramWebhookSecret)) return fail(401, 'unauthorized', 'Telegram webhook authentication failed.');
         try {
           const body = await readJson(req);
-          const result = await processTelegramWebhook(body, { secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
+          const result = await processTelegramWebhook(body, {
+            secret: cfg.telegramWebhookSecret,
+            receivedSecret,
+            speech
+          });
           if (!result.ok) {
-            console.error('Telegram webhook rejected update:', result);
+            if (result.reason === 'secret_not_configured') return fail(503, 'telegram_webhook_unconfigured', 'Telegram webhook authentication is not configured.');
+            if (result.reason === 'unauthorized') return fail(401, 'unauthorized', 'Telegram webhook authentication failed.');
             return fail(400, result.reason || 'telegram_webhook_error', 'Telegram webhook rejected the update.');
           }
           return send(200, { ok: true });
         } catch (e) {
-          console.error('Telegram webhook request failed:', e && e.stack ? e.stack : e);
-          return fail(400, 'telegram_webhook_error', e && e.message ? e.message : 'Telegram webhook request failed.');
+          console.error('Telegram webhook request failed.');
+          return fail(400, 'telegram_webhook_error', 'Telegram webhook request failed.');
         }
       }
 
@@ -318,19 +328,27 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       return fail(status, e.code || 'bad_request', e.message);
     }
   };
-  return { server: createServer(handler), retriever, router, chat, store };
+  return { server: createServer(handler), retriever, router, chat, store, providers: activeProviders };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try { process.loadEnvFile('.env'); } catch { /* .env is optional */ }
   const cfg = loadConfig();
-  if (cfg.providers.includes('gemini') && !cfg.geminiKey) {
-    console.warn('GEMINI_API_KEY is not set; Gemini will be skipped. Configure it in the deployment environment to enable Gemini.');
+  if (!cfg.geminiKey) console.warn('Gemini is disabled: GEMINI_API_KEY is not set.');
+  else if (!cfg.providers.includes('gemini')) console.warn('Gemini key is configured but gemini is not in AI_PROVIDERS.');
+  if (!cfg.groqKey) console.warn('Groq is disabled: GROQ_API_KEY is not set.');
+  else if (!cfg.providers.includes('groq')) console.warn('Groq key is configured but groq is not in AI_PROVIDERS.');
+  if (!cfg.addisApiKey) console.warn('Speech recognition and synthesis are disabled: ADDIS_API_KEY is not set.');
+  if (cfg.telegramBotToken && cfg.telegramWebhookUrl && !cfg.telegramWebhookSecret) console.warn('Telegram webhook is not configured securely: TELEGRAM_WEBHOOK_SECRET is not set.');
+  const unknownProviders = cfg.providers.filter((name) => !['gemini', 'groq', 'ollama', 'offline'].includes(name));
+  if (unknownProviders.length) console.warn(`Unknown AI_PROVIDERS entries will be ignored: ${unknownProviders.join(', ')}.`);
+  if (cfg.providers.includes('ollama') && cfg.nodeEnv === 'production' && ['localhost', '127.0.0.1', '::1'].includes(new URL(cfg.ollamaBaseUrl).hostname)) {
+    console.warn('Ollama is configured at a loopback URL and will be skipped in production. Set OLLAMA_BASE_URL to a reachable service or remove ollama from AI_PROVIDERS.');
   }
   if (cfg.agentKey && cfg.agentKey.length < 16) console.warn('AGENT_KEY is short. Use at least 16 random characters.');
-  const { server } = createApp(cfg);
+  const { server, providers } = createApp(cfg);
   server.listen(cfg.port, async () => {
-    console.log(`INCLUSIVE API on http://localhost:${cfg.port} (providers: ${cfg.providers.join(', ')})`);
+    console.log(`INCLUSIVE API on http://localhost:${cfg.port} (providers: ${providers.map((provider) => provider.name).join(', ')})`);
     console.log(`Demo: http://localhost:${cfg.port}/demo   Support console: ${cfg.agentKey ? `http://localhost:${cfg.port}/agent` : 'OFF (set AGENT_KEY)'}`);
     if (!cfg.telegramBotToken) {
       console.warn('Telegram bot is disabled: TELEGRAM_BOT_TOKEN is not set.');
@@ -340,8 +358,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.warn('Telegram bot is running without a webhook URL. Set TELEGRAM_WEBHOOK_URL to register the webhook.');
       return;
     }
-    const result = await registerWebhook({ baseUrl: cfg.telegramWebhookUrl, path: cfg.telegramWebhookPath || '/telegram/webhook', secret: cfg.telegramWebhookSecret || cfg.internalKey || '' });
+    const result = await registerWebhook({ baseUrl: cfg.telegramWebhookUrl, path: cfg.telegramWebhookPath || '/telegram/webhook', secret: cfg.telegramWebhookSecret });
     if (result.ok) console.log(`Telegram webhook registered: ${result.url}`);
-    else console.warn('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, and your Render environment.');
+    else console.warn('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL, TELEGRAM_WEBHOOK_PATH, TELEGRAM_WEBHOOK_SECRET, and TELEGRAM_BOT_TOKEN.');
   });
 }
