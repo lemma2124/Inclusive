@@ -138,37 +138,37 @@
     '@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}',
     '</style>',
     '<div class="shell" id="shell">',
-      '<section class="box" id="box" aria-labelledby="h" hidden>',
-        '<header class="top">',
-          '<h2 class="title" id="h" data-k="heading"></h2>',
-          '<button type="button" class="lang-toggle" id="langToggle" aria-haspopup="true">',
-            '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>',
-            '<span class="lang-code" id="langCode">EN</span>',
-          '</button>',
-          '<button type="button" class="icon-btn" id="close" data-k="closeChat" aria-label="Close chat">',
-            '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-          '</button>',
-        '</header>',
-        '<p class="mode" id="mode" data-k="humanMode" hidden></p>',
-        '<div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></div>',
-        '<p class="status" id="status" role="status" aria-live="polite"></p>',
-        '<form class="form" id="form" novalidate>',
-          '<label for="q" data-k="label"></label>',
-          '<textarea id="q" rows="2" maxlength="1000" dir="auto" enterkeyhint="send" aria-describedby="hint"></textarea>',
-          '<p class="hint" id="hint" data-k="hint"></p>',
-          '<div class="row">',
-            '<button type="button" id="mic" data-k="mic" aria-pressed="false"></button>',
-            '<button type="button" id="cancelMic" data-k="cancelRecording" hidden></button>',
-            '<button type="submit" id="send" class="primary" data-k="send"></button>',
-            '<button type="button" id="endHuman" data-k="humanEnd" hidden></button>',
-            '<button type="button" id="shareBtn" data-k="shareScreen" hidden></button>',
-          '</div>',
-        '</form>',
-      '</section>',
-      '<button type="button" class="launcher" id="launcher" aria-controls="box" aria-expanded="false">',
-        '<span class="launcher-label" data-k="openChat"></span>',
-        '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v11H9l-5 3v-14z"/></svg>',
-      '</button>',
+    '<section class="box" id="box" aria-labelledby="h" hidden>',
+    '<header class="top">',
+    '<h2 class="title" id="h" data-k="heading"></h2>',
+    '<button type="button" class="lang-toggle" id="langToggle" aria-haspopup="true">',
+    '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>',
+    '<span class="lang-code" id="langCode">EN</span>',
+    '</button>',
+    '<button type="button" class="icon-btn" id="close" data-k="closeChat" aria-label="Close chat">',
+    '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    '</button>',
+    '</header>',
+    '<p class="mode" id="mode" data-k="humanMode" hidden></p>',
+    '<div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></div>',
+    '<p class="status" id="status" role="status" aria-live="polite"></p>',
+    '<form class="form" id="form" novalidate>',
+    '<label for="q" data-k="label"></label>',
+    '<textarea id="q" rows="2" maxlength="1000" dir="auto" enterkeyhint="send" aria-describedby="hint"></textarea>',
+    '<p class="hint" id="hint" data-k="hint"></p>',
+    '<div class="row">',
+    '<button type="button" id="mic" data-k="mic" aria-pressed="false"></button>',
+    '<button type="button" id="cancelMic" data-k="cancelRecording" hidden></button>',
+    '<button type="submit" id="send" class="primary" data-k="send"></button>',
+    '<button type="button" id="endHuman" data-k="humanEnd" hidden></button>',
+    '<button type="button" id="shareBtn" data-k="shareScreen" hidden></button>',
+    '</div>',
+    '</form>',
+    '</section>',
+    '<button type="button" class="launcher" id="launcher" aria-controls="box" aria-expanded="false">',
+    '<span class="launcher-label" data-k="openChat"></span>',
+    '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h16v11H9l-5 3v-14z"/></svg>',
+    '</button>',
     '</div>'
   ].join('');
 
@@ -589,7 +589,7 @@
       this._cancelRecording();
       this._speechReview = null;
       this._stopSpeak();
-      
+
       if (this._human) { return this._sendHuman(text); }
 
       var self = this;
@@ -602,7 +602,9 @@
         var request = {
           message: text,
           lang: lang,
-          history: this._history.slice(this._courseContext ? -2 : -4)
+          // Do not send history if we are answering from a specific lesson page context.
+          // This forces the AI to answer each question independently.
+          history: this._courseContext ? [] : this._history.slice(-4)
         };
         if (this._courseContext) { request.context = this._courseContext; }
         var data = await this._call('POST', '/v1/chat', request, '', 25000);
@@ -1099,7 +1101,7 @@
     window.customElements.define('inclusive-assistant', InclusiveAssistant);
   }
   if (!window.customElements.get('savanna-assistant')) {
-    class LegacyInclusiveAssistant extends InclusiveAssistant {}
+    class LegacyInclusiveAssistant extends InclusiveAssistant { }
     window.customElements.define('savanna-assistant', LegacyInclusiveAssistant);
   }
 })();
