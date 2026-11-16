@@ -17,7 +17,8 @@ export const openapi = {
   components: {
     securitySchemes: {
       learnerToken: { type: 'http', scheme: 'bearer', description: 'The token returned when the handoff was created.' },
-      agentKey: { type: 'http', scheme: 'bearer', description: 'The AGENT_KEY configured on the server.' }
+      agentKey: { type: 'http', scheme: 'bearer', description: 'The AGENT_KEY configured on the server.' },
+      smsInboundKey: { type: 'http', scheme: 'bearer', description: 'The SMS_INBOUND_KEY configured on the server.' }
     },
     schemas: {
       ChatRequest: {
@@ -78,7 +79,25 @@ export const openapi = {
       },
       Say: { type: 'object', required: ['text'], properties: { text: { type: 'string', maxLength: 1000 } } },
       Signal: { type: 'object', required: ['signal'], properties: { signal: { type: 'object', description: 'A WebRTC offer, answer, or ICE candidate. Opaque to the server and relayed as-is.' } } },
-      SmsInbound: { type: 'object', required: ['from', 'text'], properties: { from: { type: 'string', description: 'Phone number as sent by the gateway.' }, text: { type: 'string', maxLength: 1000 } } },
+      SmsInbound: { type: 'object', required: ['from', 'text'], properties: { from: { type: 'string', description: 'Phone number as sent by the gateway.' }, text: { type: 'string', maxLength: 1000 }, messageId: { type: 'string', maxLength: 128, description: 'Optional gateway message ID used for duplicate suppression.' } } },
+      TelerivetWebhook: {
+        type: 'object',
+        required: ['event', 'id', 'message_type', 'content', 'secret'],
+        properties: {
+          event: { type: 'string', enum: ['incoming_message'] },
+          id: { type: 'string', maxLength: 34, description: 'Telerivet message ID used for duplicate suppression.' },
+          message_type: { type: 'string', enum: ['sms'] },
+          from_number: { type: 'string' },
+          from_number_e164: { type: 'string' },
+          content: { type: 'string', maxLength: 1000 },
+          secret: { type: 'string', description: 'Must match TELERIVET_WEBHOOK_SECRET.' }
+        }
+      },
+      SmsDeadLetterRetry: {
+        type: 'object',
+        required: ['messageId'],
+        properties: { messageId: { type: 'string', maxLength: 128, description: 'Telerivet message ID from the failed-job listing.' } }
+      },
       JobSubscribe: { type: 'object', required: ['channel', 'contact'], properties: { channel: { type: 'string', enum: ['telegram', 'sms'] }, contact: { type: 'string', description: 'Telegram chat id or phone number.' }, lang: { type: 'string', enum: ['am', 'en'] } } },
       AccommodationRequest: { type: 'object', required: ['request'], properties: { request: { type: 'string', maxLength: 1000, description: 'What the learner needs. Never a diagnosis.' }, lang: { type: 'string', enum: ['am', 'en'] } } },
       Broadcast: { type: 'object', required: ['text'], properties: { text: { type: 'string', maxLength: 1000 } } },
@@ -243,14 +262,58 @@ export const openapi = {
     },
     '/v1/sms/inbound': {
       post: {
-        summary: 'Gateway webhook: an inbound SMS arrived. Protected by SMS_INBOUND_KEY as a bearer token. The exact request shape may need adjusting to match the real gateway chosen at kick-off.',
-        security: [{ agentKey: [] }],
+        summary: 'Generic gateway webhook: an inbound SMS arrived. Protected by SMS_INBOUND_KEY as a bearer token.',
+        security: [{ smsInboundKey: [] }],
         requestBody: { required: true, content: json('SmsInbound') },
-        responses: { 200: { description: 'Accepted' }, 401: errorResponse('unauthorized'), 503: errorResponse('sms_disabled') }
+        responses: { 200: { description: 'Accepted' }, 401: errorResponse('unauthorized'), 503: errorResponse('sms_disabled, sms_inbound_unconfigured') }
       }
     },
-        '/v1/sms/outbox': {
-      get: { summary: 'Demo/testing only: the console simulator\u2019s sent messages (not available when a real gateway is configured)', security: [{ agentKey: [] }], parameters: [afterParam], responses: { 200: { description: 'Sent messages' } } }
+    '/v1/sms/telerivet': {
+      post: {
+        summary: 'Telerivet incoming-message webhook. Authenticates the URL-encoded secret and queues the message in Redis.',
+        requestBody: {
+          required: true,
+          content: { 'application/x-www-form-urlencoded': { schema: { $ref: '#/components/schemas/TelerivetWebhook' } } }
+        },
+        responses: {
+          200: { description: 'Queued, ignored, or already queued' },
+          400: errorResponse('invalid_telerivet_message'),
+          403: errorResponse('unauthorized'),
+          415: errorResponse('unsupported_media_type'),
+          503: errorResponse('sms_disabled, telerivet_webhook_unconfigured, sms_queue_unavailable')
+        }
+      }
+    },
+    '/v1/sms/outbox': {
+      get: { summary: 'Demo/testing only: the console simulator\u2019s sent messages (not available when a real gateway is configured)', security: [{ smsInboundKey: [] }], parameters: [afterParam], responses: { 200: { description: 'Sent messages' } } }
+    },
+    '/v1/agent/sms/failed': {
+      get: {
+        summary: 'List Telerivet SMS jobs in the dead-letter stream.',
+        security: [{ agentKey: [] }],
+        parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } }],
+        responses: {
+          200: { description: 'Failed SMS jobs, including their message IDs and last errors.' },
+          401: errorResponse('unauthorized'),
+          429: errorResponse('rate_limited'),
+          503: errorResponse('agent_disabled, sms_queue_unavailable')
+        }
+      }
+    },
+    '/v1/agent/sms/failed/retry': {
+      post: {
+        summary: 'Retry a dead-lettered Telerivet SMS job.',
+        security: [{ agentKey: [] }],
+        requestBody: { required: true, content: json('SmsDeadLetterRetry') },
+        responses: {
+          202: { description: 'Job queued for a fresh attempt.' },
+          400: errorResponse('message_id_required'),
+          401: errorResponse('unauthorized'),
+          404: errorResponse('sms_dead_letter_not_found'),
+          429: errorResponse('rate_limited'),
+          503: errorResponse('agent_disabled, sms_queue_unavailable')
+        }
+      }
     },
     '/v1/jobs/subscribe': {
       post: { summary: 'Subscribe to job alerts by Telegram or SMS', requestBody: { required: true, content: json('JobSubscribe') }, responses: { 201: { description: 'Subscribed' }, 400: errorResponse('channel_required, contact_required'), 429: errorResponse('rate_limited') } }

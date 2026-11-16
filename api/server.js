@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createClient } from 'redis';
 import { loadConfig } from './lib/config.js';
 import { bearer, safeEqual } from './lib/auth.js';
 import { loadPassages, DEFAULT_CONTENT_DIR } from './retrieval/content.js';
@@ -16,6 +17,8 @@ import { createChat } from './chat.js';
 import { createHandoffStore } from './handoff/store.js';
 import { createConsoleSmsAdapter } from './sms/console-adapter.js';
 import { createWebhookSmsAdapter } from './sms/webhook-adapter.js';
+import { createTelerivetSmsAdapter } from './sms/telerivet-adapter.js';
+import { createTelerivetSmsQueue } from './sms/telerivet-queue.js';
 import { createSmsRuntime } from './sms/session.js';
 import { createJobStore } from './jobs/store.js';
 import { createTelegramSender } from './jobs/telegram-send.js';
@@ -71,6 +74,24 @@ async function readJson(req) {
   }
 }
 
+async function readForm(req) {
+  const contentType = String(req.headers['content-type'] || '').split(';', 1)[0].trim().toLowerCase();
+  if (contentType !== 'application/x-www-form-urlencoded') {
+    throw Object.assign(new Error('Body must use application/x-www-form-urlencoded.'), { status: 415, code: 'unsupported_media_type' });
+  }
+  return new URLSearchParams(await readBody(req));
+}
+
+function withTimeout(promise, timeoutMs) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((resolve, reject) => {
+      timer = setTimeout(() => reject(Object.assign(new Error('SMS queue request timed out.'), { code: 'sms_queue_timeout' })), timeoutMs);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
 function makeLimiter(max, windowMs = 60000) {
   const seen = new Map();
   return (ip) => {
@@ -86,7 +107,13 @@ function makeLimiter(max, windowMs = 60000) {
 const num = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : 0; };
 const waitMs = (v) => Math.min(num(v), 25) * 1000;
 
-export function createApp(cfg = loadConfig(), { providers, speech: speechOverride } = {}) {
+export function createApp(cfg = loadConfig(), {
+  providers,
+  speech: speechOverride,
+  redisClient,
+  telerivetQueue: telerivetQueueOverride,
+  telerivetFetchImpl
+} = {}) {
   const passages = loadPassages(cfg.contentDir || DEFAULT_CONTENT_DIR);
   const retriever = new Retriever(passages);
   const activeProviders = providers || buildProviders(cfg);
@@ -94,13 +121,27 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
   const chat = createChat({ retriever, router, minCoverage: cfg.minCoverage });
   const speech = speechOverride || createAddisSpeech({ apiKey: cfg.addisApiKey, timeoutMs: 90000 });
   const store = createHandoffStore();
-  const smsAdapter = cfg.smsProvider === 'webhook'
-    ? createWebhookSmsAdapter({ url: cfg.smsWebhookUrl, key: cfg.smsWebhookKey })
-    : createConsoleSmsAdapter();
+  const smsAdapter = cfg.smsProvider === 'telerivet'
+    ? createTelerivetSmsAdapter({
+      apiKey: cfg.telerivetApiKey,
+      projectId: cfg.telerivetProjectId,
+      routeId: cfg.telerivetRouteId,
+      fetchImpl: telerivetFetchImpl
+    })
+    : cfg.smsProvider === 'webhook'
+      ? createWebhookSmsAdapter({ url: cfg.smsWebhookUrl, key: cfg.smsWebhookKey })
+      : createConsoleSmsAdapter();
   const jobStore = createJobStore();
   const telegramSender = createTelegramSender(cfg.telegramBotToken);
   const alerts = createAlertService({ jobStore, telegramSender, smsAdapter });
-  const sms = cfg.smsInboundKey ? createSmsRuntime({ chat, store, jobStore, sendOutbound: (to, text, smsMeta) => smsAdapter.send({ to, text, ...smsMeta }) }) : null;
+  const sms = cfg.smsInboundKey || cfg.smsProvider === 'telerivet'
+    ? createSmsRuntime({ chat, store, jobStore, sendOutbound: (to, text, smsMeta) => smsAdapter.send({ to, text, ...smsMeta }) })
+    : null;
+  const telerivetQueue = telerivetQueueOverride || (
+    cfg.smsProvider === 'telerivet' && redisClient
+      ? createTelerivetSmsQueue({ client: redisClient, runtime: sms })
+      : null
+  );
   const chatLimited = makeLimiter(cfg.rateLimitPerMin);
   const handoffLimited = makeLimiter(cfg.handoffRateLimitPerMin || 5);
   const pollLimited = makeLimiter(240);
@@ -190,6 +231,37 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
         return send(200, await speech.synthesize({ text: b.text, language: b.language }));
       }
 
+      if (POST && path === '/v1/sms/telerivet') {
+        if (cfg.smsProvider !== 'telerivet') return fail(503, 'sms_disabled', 'Telerivet SMS is not configured.');
+        if (typeof cfg.telerivetWebhookSecret !== 'string' || cfg.telerivetWebhookSecret.replace(/\s/g, '').length < 16) {
+          return fail(503, 'telerivet_webhook_unconfigured', 'Telerivet webhook authentication requires a secret with at least 16 characters.');
+        }
+        if (!telerivetQueue) return fail(503, 'sms_queue_unavailable', 'The Telerivet SMS queue is not available.');
+
+        const fields = await readForm(req);
+        if (!safeEqual(fields.get('secret') || '', cfg.telerivetWebhookSecret)) {
+          return fail(403, 'unauthorized', 'Telerivet webhook authentication failed.');
+        }
+        if (fields.get('event') !== 'incoming_message' || fields.get('message_type') !== 'sms') {
+          return send(200, { ok: true, ignored: true });
+        }
+        const messageId = fields.get('id') || '';
+        const from = fields.get('from_number_e164') || fields.get('from_number') || '';
+        const text = fields.get('content') || '';
+        if (!messageId || messageId.length > 34 || !from || !text) {
+          return fail(400, 'invalid_telerivet_message', 'Telerivet message ID, sender, and content are required.');
+        }
+
+        let queued;
+        try {
+          queued = await withTimeout(telerivetQueue.enqueue({ messageId, from, text }), 5000);
+        } catch (error) {
+          console.error('Telerivet SMS webhook could not queue a message:', error && error.message ? error.message : 'unknown error');
+          return fail(503, 'sms_queue_unavailable', 'The message could not be queued. Telerivet may retry it.');
+        }
+        return send(200, { ok: true, duplicate: Boolean(queued.duplicate) });
+      }
+
       // Widget files and pages. Names are a flat, safe pattern, so nothing outside widget/ is ever served.
       if (GET && (PAGES[path] || path.startsWith('/widget/'))) {
         const requestedName = PAGES[path] || path.slice('/widget/'.length);
@@ -242,6 +314,9 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       // ---- Low-bandwidth SMS/text route (same process, no extra infra) ----
       if (POST && path === '/v1/sms/inbound') {
         if (!sms) return fail(503, 'sms_disabled', 'The SMS route is off. Set SMS_INBOUND_KEY on the server.');
+        if (typeof cfg.smsInboundKey !== 'string' || !cfg.smsInboundKey.trim()) {
+          return fail(503, 'sms_inbound_unconfigured', 'The SMS inbound route requires SMS_INBOUND_KEY.');
+        }
         if (!safeEqual(bearer(req), cfg.smsInboundKey)) return fail(401, 'unauthorized', 'The SMS inbound key is missing or wrong.', { 'www-authenticate': 'Bearer' });
         if (smsLimited(ip)) return fail(429, 'rate_limited', 'Too many inbound SMS requests. Please retry later.', { 'retry-after': '60' });
         const b = await readJson(req);
@@ -259,8 +334,31 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       }
       if (GET && path === '/v1/sms/outbox' && typeof smsAdapter.list === 'function') {
         if (!sms) return fail(503, 'sms_disabled', 'The SMS route is off. Set SMS_INBOUND_KEY on the server.');
+        if (typeof cfg.smsInboundKey !== 'string' || !cfg.smsInboundKey.trim()) {
+          return fail(503, 'sms_inbound_unconfigured', 'The SMS inbound route requires SMS_INBOUND_KEY.');
+        }
         if (!safeEqual(bearer(req), cfg.smsInboundKey)) return fail(401, 'unauthorized', 'The SMS inbound key is missing or wrong.', { 'www-authenticate': 'Bearer' });
         return send(200, { messages: smsAdapter.list(num(url.searchParams.get('after'))) });
+      }
+
+      if ((GET && path === '/v1/agent/sms/failed') || (POST && path === '/v1/agent/sms/failed/retry')) {
+        if (!cfg.agentKey) return fail(503, 'agent_disabled', 'The support console is off. Set AGENT_KEY on the server.');
+        if (!safeEqual(bearer(req), cfg.agentKey)) return fail(401, 'unauthorized', 'The agent key is missing or wrong.', { 'www-authenticate': 'Bearer' });
+        if (!telerivetQueue) return fail(503, 'sms_queue_unavailable', 'The Telerivet SMS queue is not available.');
+        if (agentLimited(ip)) return fail(429, 'rate_limited', 'Too many requests. Please wait a minute.', { 'retry-after': '60' });
+
+        if (GET) {
+          const limit = num(url.searchParams.get('limit')) || 50;
+          return send(200, { messages: await telerivetQueue.listFailed(limit) });
+        }
+
+        const body = await readJson(req);
+        if (typeof body.messageId !== 'string' || !body.messageId.trim() || body.messageId.length > 128) {
+          return fail(400, 'message_id_required', 'A valid Telerivet messageId is required.');
+        }
+        const result = await telerivetQueue.retryFailed(body.messageId);
+        if (!result.retried) return fail(404, 'sms_dead_letter_not_found', 'No failed SMS job was found for that messageId.');
+        return send(202, { ok: true, status: 'queued' });
       }
 
             // ---- Career gateway: job alerts and interview accommodations ----
@@ -328,12 +426,15 @@ export function createApp(cfg = loadConfig(), { providers, speech: speechOverrid
       return fail(status, e.code || 'bad_request', e.message);
     }
   };
-  return { server: createServer(handler), retriever, router, chat, store, providers: activeProviders };
+  return { server: createServer(handler), retriever, router, chat, store, providers: activeProviders, smsQueue: telerivetQueue };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+async function startServer() {
   try { process.loadEnvFile('.env'); } catch { /* .env is optional */ }
   const cfg = loadConfig();
+  if (!['console', 'webhook', 'telerivet'].includes(cfg.smsProvider)) {
+    throw new Error('SMS_PROVIDER must be console, webhook, or telerivet.');
+  }
   if (!cfg.geminiKey) console.warn('Gemini is disabled: GEMINI_API_KEY is not set.');
   else if (!cfg.providers.includes('gemini')) console.warn('Gemini key is configured but gemini is not in AI_PROVIDERS.');
   if (!cfg.groqKey) console.warn('Groq is disabled: GROQ_API_KEY is not set.');
@@ -346,7 +447,32 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.warn('Ollama is configured at a loopback URL and will be skipped in production. Set OLLAMA_BASE_URL to a reachable service or remove ollama from AI_PROVIDERS.');
   }
   if (cfg.agentKey && cfg.agentKey.length < 16) console.warn('AGENT_KEY is short. Use at least 16 random characters.');
-  const { server, providers } = createApp(cfg);
+  let redisClient;
+  if (cfg.smsProvider === 'telerivet') {
+    const required = [
+      ['TELERIVET_API_KEY', cfg.telerivetApiKey],
+      ['TELERIVET_PROJECT_ID', cfg.telerivetProjectId],
+      ['TELERIVET_WEBHOOK_SECRET', cfg.telerivetWebhookSecret],
+      ['REDIS_URL', cfg.redisUrl]
+    ];
+    const missing = required.filter(([, value]) => !value).map(([name]) => name);
+    if (missing.length) throw new Error(`Telerivet SMS configuration is incomplete: ${missing.join(', ')}.`);
+    if (cfg.telerivetWebhookSecret.replace(/\s/g, '').length < 16) {
+      throw new Error('TELERIVET_WEBHOOK_SECRET must contain at least 16 non-whitespace characters.');
+    }
+    redisClient = createClient({ url: cfg.redisUrl });
+    redisClient.on('error', (error) => console.error('Redis SMS connection error:', error.message));
+    await redisClient.connect();
+  }
+
+  const app = createApp(cfg, { redisClient });
+  try {
+    if (app.smsQueue) await app.smsQueue.start();
+  } catch (error) {
+    if (redisClient && redisClient.isOpen) await redisClient.quit();
+    throw error;
+  }
+  const { server, providers } = app;
   server.listen(cfg.port, async () => {
     console.log(`INCLUSIVE API on http://localhost:${cfg.port} (providers: ${providers.map((provider) => provider.name).join(', ')})`);
     console.log(`Demo: http://localhost:${cfg.port}/demo   Support console: ${cfg.agentKey ? `http://localhost:${cfg.port}/agent` : 'OFF (set AGENT_KEY)'}`);
@@ -361,5 +487,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const result = await registerWebhook({ baseUrl: cfg.telegramWebhookUrl, path: cfg.telegramWebhookPath || '/telegram/webhook', secret: cfg.telegramWebhookSecret });
     if (result.ok) console.log(`Telegram webhook registered: ${result.url}`);
     else console.warn('Telegram webhook registration failed. Check TELEGRAM_WEBHOOK_URL, TELEGRAM_WEBHOOK_PATH, TELEGRAM_WEBHOOK_SECRET, and TELEGRAM_BOT_TOKEN.');
+  });
+  let closing = false;
+  const shutdown = async () => {
+    if (closing) return;
+    closing = true;
+    await new Promise((resolve) => server.close(resolve));
+    if (app.smsQueue) await app.smsQueue.stop();
+    if (redisClient && redisClient.isOpen) await redisClient.quit();
+  };
+  process.once('SIGINT', () => { void shutdown().catch((error) => console.error('API shutdown failed:', error.message)); });
+  process.once('SIGTERM', () => { void shutdown().catch((error) => console.error('API shutdown failed:', error.message)); });
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer().catch((error) => {
+    console.error('API startup failed:', error.message);
+    process.exitCode = 1;
   });
 }

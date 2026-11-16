@@ -6,7 +6,7 @@ import { detectChannelLanguage, parseChannelLanguage, smsEncoding } from './lang
 const STRINGS = {
     en: {
         welcome: 'Welcome to INCLUSIVE! Ask a question about your course. Reply HUMAN for a person, JOBS for job alerts, ACCOMMODATION for interview help, EN or AM to change language.',
-        help: 'INCLUSIVE: LEARN asks a course question; JOBS lists local job information; SUPPORT requests a person; LANGUAGE changes language; ALERTS subscribes to job alerts; STOP stops optional alerts; HELP shows this menu.',
+        help: 'INCLUSIVE: LEARN asks a course question; JOBS lists job information; JOBS ON/OFF or ALERTS/UNSUBSCRIBE manage alerts; STOP pauses SMS and START resumes; SUPPORT requests a person; LANGUAGE changes language; HELP shows this menu.',
         languagePrompt: 'Choose a language: ENGLISH, AMHARIC, AFAAN OROMOO, or TIGRINYA.',
         languageSet: 'Language preference updated.',
         learnPrompt: 'Send your question about the course. Current course answers are available in English and Amharic.',
@@ -36,7 +36,7 @@ const STRINGS = {
     },
     am: {
         welcome: 'ወደ INCLUSIVE እንኳን በደህና መጡ! ስለ ኮርስዎ ይጠይቁ። ሰው ለማግኘት HUMAN፣ ለስራ ማስታወቂያ JOBS፣ ለቃለ መጠይቅ ድጋፍ ACCOMMODATION፣ ቋንቋ ለመቀየር EN ወይም AM ይላኩ።',
-        help: 'INCLUSIVE፦ የኮርስ ጥያቄ LEARN፣ የሥራ መረጃ JOBS፣ ሰው ለማግኘት SUPPORT፣ ቋንቋ LANGUAGE፣ ማስታወቂያ ለመመዝገብ ALERTS፣ ለማቆም STOP፣ ይህን ዝርዝር ለማየት HELP ይላኩ።',
+        help: 'INCLUSIVE፦ LEARN የኮርስ ጥያቄ፣ JOBS የሥራ መረጃ፣ JOBS ON ማስታወቂያ ጀምር፣ JOBS OFF ማስታወቂያ አቁም፣ STOP አገልግሎት አቁም፣ START ቀጥል፣ SUPPORT ሰው ጠይቅ፣ LANGUAGE ቋንቋ ቀይር፣ HELP ይላኩ።',
         languagePrompt: 'ቋንቋ ይምረጡ፦ ENGLISH፣ AMHARIC፣ AFAAN OROMOO ወይም TIGRINYA።',
         languageSet: 'ቋንቋ ተቀይሯል።',
         learnPrompt: 'ስለ ኮርሱ ጥያቄዎን ይላኩ። የኮርስ መልሶች በአማርኛ እና በእንግሊዝኛ ይገኛሉ።',
@@ -66,7 +66,7 @@ const STRINGS = {
     },
     om: {
         welcome: 'Baga gara INCLUSIVE dhuftan! Gaaffii barnootaa gaafadhaa. LEARN, JOBS, SUPPORT, LANGUAGE, HELP yookaan STOP ergaa.',
-        help: 'INCLUSIVE: LEARN gaaffii barnootaa; JOBS odeeffannoo hojii; SUPPORT nama; LANGUAGE afaan jijjiiri; ALERTS beeksisa hojii; STOP ergaa dabalataa dhaabi; HELP ajaja agarsiisi.',
+        help: 'INCLUSIVE: LEARN gaaffii barnootaa; JOBS odeeffannoo hojii; JOBS ON/OFF beeksisa hojii jalqabi/dhaabi; STOP tajaajila dhaabi, START itti fufi; SUPPORT nama; LANGUAGE afaan jijjiiri; HELP ajaja agarsiisi.',
         languagePrompt: 'Afaan filadhaa: ENGLISH, AMHARIC, AFAAN OROMOO, yookaan TIGRINYA.',
         languageSet: 'Afaan Oromo filatame.',
         learnPrompt: 'Gaaffii barnootaa keessan ergaa. Deebiin barnootaa yeroo ammaa Afaan Oromoo fi Tigrinya hin deeggaru.',
@@ -96,7 +96,7 @@ const STRINGS = {
     },
     ti: {
         welcome: 'ናብ INCLUSIVE ብደሓን መጻእኩም! ሕቶ ትምህርቲ ሕተቱ። LEARN፣ JOBS፣ SUPPORT፣ LANGUAGE፣ HELP ወይ STOP ስደዱ።',
-        help: 'INCLUSIVE፦ LEARN ሕቶ ትምህርቲ፣ JOBS ሓበሬታ ስራሕ፣ SUPPORT ሰብ ሓገዝ፣ LANGUAGE ቋንቋ ምቕያር፣ ALERTS ምዝገባ ስራሕ፣ STOP ኣማራጺ መልእኽቲ ምቁራጽ፣ HELP ትእዛዛት።',
+        help: 'INCLUSIVE፦ LEARN ሕቶ ትምህርቲ፣ JOBS ሓበሬታ ስራሕ፣ JOBS ON/OFF ሓበሬታ ስራሕ ጀምር/ደው ኣብል፣ STOP ኣገልግሎት ኣቋርጽ፣ START ቀጽል፣ SUPPORT ሓገዝ፣ LANGUAGE ቋንቋ ምቕያር፣ HELP ትእዛዛት።',
         languagePrompt: 'ቋንቋ ምረጹ፦ ENGLISH፣ AMHARIC፣ AFAAN OROMOO ወይ TIGRINYA።',
         languageSet: 'ትግርኛ ተመሪጹ።',
         learnPrompt: 'ሕቶ ትምህርትኹም ስደዱ። ናይ ትምህርቲ መልሲ ኣብዚ እዋን ብትግርኛ ኣይድገፍን።',
@@ -153,13 +153,14 @@ export function createSmsRuntime({ chat, store, jobStore, sendOutbound, maxPerMi
     }
     const t = (s, key) => STRINGS[s.lang || 'en'][key] || STRINGS.en[key] || '';
 
-    async function deliver(phone, text) {
+    async function deliver(phone, text, { throwOnFailure = false } = {}) {
         try {
             const metadata = smsEncoding(text);
             await sendOutbound(phone, text, metadata);
             return true;
         } catch (error) {
             console.error('SMS delivery failed:', error && error.message ? error.message : 'unknown error');
+            if (throwOnFailure) throw error;
             return false;
         }
     }
@@ -189,17 +190,18 @@ export function createSmsRuntime({ chat, store, jobStore, sendOutbound, maxPerMi
         if (processed.size > 5000) processed.delete(processed.keys().next().value);
     }
 
-    async function answerFromKnowledge(phone, s, message, lang) {
-        if (lang !== 'en' && lang !== 'am') return deliver(phone, t(s, 'unsupportedChat'));
+    async function answerFromKnowledge(phone, s, message, lang, reply = deliver) {
+        if (lang !== 'en' && lang !== 'am') return reply(phone, t(s, 'unsupportedChat'));
+        let data;
         try {
-            const data = await chat({ message, lang, history: s.history.slice(-4) });
-            s.history.push({ role: 'user', content: message });
-            s.history.push({ role: 'assistant', content: data.answer });
-            s.pendingQuestion = message;
-            return deliver(phone, data.answer + (data.escalate ? t(s, 'escalateHint') : ''));
+            data = await chat({ message, lang, history: s.history.slice(-4) });
         } catch {
-            return deliver(phone, t(s, 'error'));
+            return reply(phone, t(s, 'error'));
         }
+        s.history.push({ role: 'user', content: message });
+        s.history.push({ role: 'assistant', content: data.answer });
+        s.pendingQuestion = message;
+        return reply(phone, data.answer + (data.escalate ? t(s, 'escalateHint') : ''));
     }
 
     async function pollHuman(phone, s, h) {
@@ -226,57 +228,71 @@ export function createSmsRuntime({ chat, store, jobStore, sendOutbound, maxPerMi
         }
     }
 
-    async function startHuman(phone, s) {
+    async function startHuman(phone, s, reply = deliver) {
+        let r;
         try {
-            const r = store.create({ question: s.pendingQuestion, transcript: s.history.slice(-10), lang: s.lang || 'en' });
-            const h = { id: r.id, token: r.token, after: 0 };
-            s.handoff = h;
-            if (!await deliver(phone, t(s, 'waiting'))) {
+            r = store.create({ question: s.pendingQuestion, transcript: s.history.slice(-10), lang: s.lang || 'en' });
+        } catch (error) {
+            await reply(phone, t(s, error.code === 'busy' ? 'busy' : 'sentFail'));
+            return { accepted: false, reason: error.code || 'handoff_failed' };
+        }
+        const h = { id: r.id, token: r.token, after: 0 };
+        s.handoff = h;
+        try {
+            if (!await reply(phone, t(s, 'waiting'))) {
                 s.handoff = null;
                 try { store.close(store.get(h.id), 'learner'); } catch { /* already removed */ }
                 return { accepted: false, reason: 'sms_delivery_failed' };
             }
-            pollHuman(phone, s, h);
-            return { accepted: true };
         } catch (error) {
-            await deliver(phone, t(s, error.code === 'busy' ? 'busy' : 'sentFail'));
-            return { accepted: false, reason: error.code || 'handoff_failed' };
+            s.handoff = null;
+            try { store.close(store.get(h.id), 'learner'); } catch { /* already removed */ }
+            throw error;
         }
+        pollHuman(phone, s, h);
+        return { accepted: true };
     }
 
-    async function createAccommodation(phone, s, request) {
+    async function createAccommodation(phone, s, request, reply = deliver) {
+        let r;
         try {
-            const r = store.create({ question: request, transcript: [], lang: s.lang || 'en', kind: 'accommodation' });
-            const h = { id: r.id, token: r.token, after: 0 };
-            s.handoff = h;
-            if (!await deliver(phone, t(s, 'accommodationWaiting'))) {
+            r = store.create({ question: request, transcript: [], lang: s.lang || 'en', kind: 'accommodation' });
+        } catch (error) {
+            await reply(phone, t(s, error.code === 'busy' ? 'busy' : 'sentFail'));
+            return { accepted: false, reason: error.code || 'handoff_failed' };
+        }
+        const h = { id: r.id, token: r.token, after: 0 };
+        s.handoff = h;
+        try {
+            if (!await reply(phone, t(s, 'accommodationWaiting'))) {
                 s.handoff = null;
                 try { store.close(store.get(h.id), 'learner'); } catch { /* already removed */ }
                 return { accepted: false, reason: 'sms_delivery_failed' };
             }
-            pollHuman(phone, s, h);
-            return { accepted: true };
         } catch (error) {
-            await deliver(phone, t(s, error.code === 'busy' ? 'busy' : 'sentFail'));
-            return { accepted: false, reason: error.code || 'handoff_failed' };
+            s.handoff = null;
+            try { store.close(store.get(h.id), 'learner'); } catch { /* already removed */ }
+            throw error;
         }
+        pollHuman(phone, s, h);
+        return { accepted: true };
     }
 
-    async function processInbound({ from, text, messageId }) {
+    async function processInbound({ from, text, messageId }, reply = deliver) {
         const phone = normalizePhone(from);
         if (!phone) return { accepted: false, reason: 'invalid_sender' };
         const raw = typeof text === 'string' ? text.trim().normalize('NFC') : '';
         if (!raw) return { accepted: false, reason: 'empty_message' };
         if (raw.length > 1000) {
-            await deliver(phone, t(session(phone), 'invalidMessage'));
+            await reply(phone, t(session(phone), 'invalidMessage'));
             return { accepted: false, reason: 'message_too_long' };
         }
         const s = session(phone);
         const word = raw.toUpperCase();
-        if (word === 'LANGUAGE' || word === 'LANG') return { accepted: await deliver(phone, t(s, 'languagePrompt')) };
+        if (word === 'LANGUAGE' || word === 'LANG') return { accepted: await reply(phone, t(s, 'languagePrompt')) };
         if (word === 'START') {
             s.optedOut = false;
-            return { accepted: await deliver(phone, t(s, 'resumed')) };
+            return { accepted: await reply(phone, t(s, 'resumed')) };
         }
         if (word === 'STOP') {
             s.optedOut = true;
@@ -287,85 +303,96 @@ export function createSmsRuntime({ chat, store, jobStore, sendOutbound, maxPerMi
                 s.handoff = null;
             }
             if (jobStore) jobStore.unsubscribe({ channel: 'sms', contact: phone });
-            return { accepted: await deliver(phone, t(s, 'stopped')) };
+            return { accepted: await reply(phone, t(s, 'stopped')) };
         }
         if (s.optedOut) return { accepted: false, reason: 'opted_out' };
         const lang = parseChannelLanguage(raw);
         if (lang) {
             s.lang = lang;
             s.languageExplicit = true;
-            return { accepted: await deliver(phone, t(s, 'languageSet')), language: lang };
+            return { accepted: await reply(phone, t(s, 'languageSet')), language: lang };
         }
         if (isLimited(phone) && word !== 'HELP') {
-            await deliver(phone, t(s, 'rateLimited'));
+            await reply(phone, t(s, 'rateLimited'));
             return { accepted: false, reason: 'rate_limited' };
         }
-        if (word === 'HELP') return { accepted: await deliver(phone, t(s, 'help')) };
-        if (word === 'LEARN') return { accepted: await deliver(phone, t(s, 'learnPrompt')) };
+        if (word === 'HELP') return { accepted: await reply(phone, t(s, 'help')) };
+        if (word === 'JOBS ON') {
+            if (jobStore) jobStore.subscribe({ channel: 'sms', contact: phone, lang: s.lang === 'am' ? 'am' : 'en' });
+            return { accepted: await reply(phone, t(s, 'jobsSubscribed')) };
+        }
+        if (word === 'JOBS OFF') {
+            if (jobStore) jobStore.unsubscribe({ channel: 'sms', contact: phone });
+            return { accepted: await reply(phone, t(s, 'jobsUnsubscribed')) };
+        }
+        if (word === 'LEARN') return { accepted: await reply(phone, t(s, 'learnPrompt')) };
         if (word === 'ALERTS' || word === 'SUBSCRIBE') {
             if (jobStore) jobStore.subscribe({ channel: 'sms', contact: phone, lang: s.lang === 'am' ? 'am' : 'en' });
-            return { accepted: await deliver(phone, t(s, 'alertsSubscribed')) };
+            return { accepted: await reply(phone, t(s, 'alertsSubscribed')) };
         }
         if (word === 'UNSUBSCRIBE') {
             if (jobStore) jobStore.unsubscribe({ channel: 'sms', contact: phone });
-            return { accepted: await deliver(phone, t(s, 'jobsUnsubscribed')) };
+            return { accepted: await reply(phone, t(s, 'jobsUnsubscribed')) };
         }
         if (word === 'JOBS') {
             const detected = detectChannelLanguage(raw);
             const selected = s.languageExplicit ? s.lang : (detected || s.lang);
-            if (!selected) return { accepted: await deliver(phone, t(s, 'languageUnclear')) };
+            if (!selected) return { accepted: await reply(phone, t(s, 'languageUnclear')) };
             s.lang = selected;
             const query = selected === 'am'
                 ? 'የሚገኙ የሥራ መረጃዎችን እና የቃለ መጠይቅ ድጋፍን አሳየኝ።'
                 : 'Show available job information and interview support.';
-            return { accepted: await answerFromKnowledge(phone, s, query, selected) };
+            return { accepted: await answerFromKnowledge(phone, s, query, selected, reply) };
         }
 
         if (s.pendingAccommodation) {
             s.pendingAccommodation = false;
-            if (word === 'CANCEL') return { accepted: await deliver(phone, t(s, 'accommodationCancelled')) };
-            return createAccommodation(phone, s, raw);
+            if (word === 'CANCEL') return { accepted: await reply(phone, t(s, 'accommodationCancelled')) };
+            return createAccommodation(phone, s, raw, reply);
         }
         if (word === 'ACCOMMODATION') {
-            if (s.handoff) return { accepted: await deliver(phone, t(s, 'escalateHint')) };
+            if (s.handoff) return { accepted: await reply(phone, t(s, 'escalateHint')) };
             s.pendingAccommodation = true;
-            return { accepted: await deliver(phone, t(s, 'accommodationPrompt')) };
+            return { accepted: await reply(phone, t(s, 'accommodationPrompt')) };
         }
         if (s.handoff) {
             if (word === 'END') {
                 const h = s.handoff;
                 s.handoff = null;
                 try { store.close(store.get(h.id), 'learner'); } catch { /* already closed */ }
-                return { accepted: await deliver(phone, t(s, 'endedYou')) };
+                return { accepted: await reply(phone, t(s, 'endedYou')) };
             }
             try { store.learnerSay(store.get(s.handoff.id), raw); return { accepted: true }; }
-            catch { s.handoff = null; return { accepted: await deliver(phone, t(s, 'lost')) }; }
+            catch { s.handoff = null; return { accepted: await reply(phone, t(s, 'lost')) }; }
         }
         if (s.pendingConsent) {
             s.pendingConsent = false;
-            if (word === 'YES') return startHuman(phone, s);
-            return { accepted: await deliver(phone, t(s, 'cancelled')) };
+            if (word === 'YES') return startHuman(phone, s, reply);
+            return { accepted: await reply(phone, t(s, 'cancelled')) };
         }
         if (word === 'SUPPORT' || word === 'HUMAN') {
             s.pendingConsent = true;
-            return { accepted: await deliver(phone, t(s, 'consent')) };
+            return { accepted: await reply(phone, t(s, 'consent')) };
         }
 
         const detected = detectChannelLanguage(raw);
         if (detected && !s.languageExplicit) s.lang = detected;
         const selected = s.lang || detected;
-        if (!selected) return { accepted: await deliver(phone, t(s, 'languageUnclear')) };
+        if (!selected) return { accepted: await reply(phone, t(s, 'languageUnclear')) };
         if (!s.lang) s.lang = selected;
-        return { accepted: await answerFromKnowledge(phone, s, raw, selected) };
+        return { accepted: await answerFromKnowledge(phone, s, raw, selected, reply) };
     }
 
-    async function handleInbound(input) {
+    async function handleInbound(input, { retryDelivery = false } = {}) {
         const phone = normalizePhone(input && input.from);
         const idValue = input && input.messageId;
         const messageId = idValue === undefined || idValue === null ? '' : String(idValue).trim();
         if (messageId.length > 128) return { accepted: false, reason: 'invalid_message_id' };
         if (phone && isDuplicate(phone, messageId)) return { accepted: true, duplicate: true };
-        const result = await processInbound({ ...input, messageId });
+        const reply = retryDelivery
+            ? (to, text) => deliver(to, text, { throwOnFailure: true })
+            : deliver;
+        const result = await processInbound({ ...input, messageId }, reply);
         if (phone && result && result.accepted) rememberMessage(phone, messageId);
         return result;
     }

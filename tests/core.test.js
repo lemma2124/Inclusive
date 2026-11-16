@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { tokenize, detectLang } from '../api/retrieval/tokenize.js';
 import { Retriever } from '../api/retrieval/index.js';
 import { loadPassages } from '../api/retrieval/content.js';
@@ -20,6 +21,8 @@ import { createHandoffStore } from '../api/handoff/store.js';
 import { createConsoleSmsAdapter } from '../api/sms/console-adapter.js';
 import { createSmsRuntime } from '../api/sms/session.js';
 import { createWebhookSmsAdapter } from '../api/sms/webhook-adapter.js';
+import { createTelerivetSmsAdapter, TelerivetSmsError } from '../api/sms/telerivet-adapter.js';
+import { createTelerivetSmsQueue } from '../api/sms/telerivet-queue.js';
 import { detectChannelLanguage, parseChannelLanguage, smsEncoding } from '../api/sms/language.js';
 import { parseTelegramInput } from '../telegram/commands.js';
 import { applyTelegramLanguage } from '../telegram/commands.js';
@@ -1048,9 +1051,33 @@ test('SMS HTTP route: disabled by default, requires the inbound key, feeds the c
     assert.equal(res.status, 503);
   });
 
+  for (const smsInboundKey of [undefined, '', '   ']) {
+    const config = {
+      ...baseCfg,
+      smsProvider: 'telerivet',
+      smsInboundKey,
+      telerivetApiKey: 'mock-key',
+      telerivetProjectId: 'mock-project'
+    };
+    await withServer(config, async (base) => {
+      const response = await fetch(`${base}/v1/sms/inbound`, {
+        method: 'POST',
+        body: JSON.stringify({ from: '+251911000000', text: 'HELP' })
+      });
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).error.code, 'sms_inbound_unconfigured');
+    });
+  }
+
   await withServer({ ...baseCfg, smsInboundKey: 'sms-secret-123456' }, async (base) => {
-    const bad = await fetch(`${base}/v1/sms/inbound`, { method: 'POST', body: JSON.stringify({ from: '+1', text: 'hi' }) });
-    assert.equal(bad.status, 401);
+    for (const authorization of [undefined, 'Bearer ', 'Bearer wrong-key']) {
+      const bad = await fetch(`${base}/v1/sms/inbound`, {
+        method: 'POST',
+        headers: authorization ? { authorization } : {},
+        body: JSON.stringify({ from: '+1', text: 'hi' })
+      });
+      assert.equal(bad.status, 401);
+    }
 
     const ok = await fetch(`${base}/v1/sms/inbound`, {
       method: 'POST',
@@ -1095,6 +1122,129 @@ test('SMS HTTP route: disabled by default, requires the inbound key, feeds the c
     assert.equal(limited.status, 429);
     assert.equal((await limited.json()).error.code, 'rate_limited');
   });
+});
+
+test('Telerivet webhook authenticates, queues URL-encoded messages, and identifies duplicates', async () => {
+  const seen = new Set();
+  const queued = [];
+  const telerivetQueue = {
+    async enqueue(message) {
+      const duplicate = seen.has(message.messageId);
+      if (!duplicate) {
+        seen.add(message.messageId);
+        queued.push(message);
+      }
+      return { duplicate };
+    }
+  };
+  const config = {
+    ...baseCfg,
+    smsProvider: 'telerivet',
+    telerivetApiKey: 'test-api-key',
+    telerivetProjectId: 'test-project',
+    telerivetWebhookSecret: 'test-webhook-secret'
+  };
+
+  await withServer(config, async (base) => {
+    const post = (values) => fetch(`${base}/v1/sms/telerivet`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(values).toString()
+    });
+    const message = {
+      event: 'incoming_message',
+      id: 'telerivet-message-1',
+      message_type: 'sms',
+      from_number: '+251911000000',
+      from_number_e164: '+251911000000',
+      content: 'ኮርስ እንዴት አገኛለሁ?',
+      secret: 'wrong-secret'
+    };
+    const { secret, ...missingSecret } = message;
+    assert.equal((await post(missingSecret)).status, 403);
+    message.secret = '';
+    assert.equal((await post(message)).status, 403);
+    message.secret = secret;
+    assert.equal((await post(message)).status, 403);
+    assert.equal(queued.length, 0);
+
+    message.secret = 'test-webhook-secret';
+    const first = await post(message);
+    assert.equal(first.status, 200);
+    assert.deepEqual(await first.json(), { ok: true, duplicate: false });
+    assert.deepEqual(queued[0], {
+      messageId: 'telerivet-message-1',
+      from: '+251911000000',
+      text: 'ኮርስ እንዴት አገኛለሁ?'
+    });
+
+    const duplicate = await post(message);
+    assert.equal(duplicate.status, 200);
+    assert.deepEqual(await duplicate.json(), { ok: true, duplicate: true });
+
+    const ignored = await post({ ...message, id: 'status-1', event: 'send_status' });
+    assert.equal(ignored.status, 200);
+    assert.deepEqual(await ignored.json(), { ok: true, ignored: true });
+    assert.equal(queued.length, 1);
+  }, { telerivetQueue });
+
+  await withServer({ ...config, telerivetWebhookSecret: 'short' }, async (base) => {
+    const response = await fetch(`${base}/v1/sms/telerivet`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ event: 'incoming_message', secret: 'short' }).toString()
+    });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error.code, 'telerivet_webhook_unconfigured');
+  }, { telerivetQueue });
+});
+
+test('agent can inspect and retry Telerivet dead letters only with AGENT_KEY', async () => {
+  const calls = [];
+  const telerivetQueue = {
+    async listFailed(limit) {
+      calls.push({ operation: 'list', limit });
+      return [{ messageId: 'dead-letter-1', attempts: 5, errorCode: 'provider_network_error' }];
+    },
+    async retryFailed(messageId) {
+      calls.push({ operation: 'retry', messageId });
+      return { retried: messageId === 'dead-letter-1' };
+    }
+  };
+  await withServer({ ...baseCfg, smsProvider: 'telerivet' }, async (base) => {
+    const unauthorized = await fetch(`${base}/v1/agent/sms/failed`);
+    assert.equal(unauthorized.status, 401);
+
+    const headers = { authorization: `Bearer ${baseCfg.agentKey}` };
+    const listed = await fetch(`${base}/v1/agent/sms/failed?limit=25`, { headers });
+    assert.equal(listed.status, 200);
+    assert.deepEqual((await listed.json()).messages, [{ messageId: 'dead-letter-1', attempts: 5, errorCode: 'provider_network_error' }]);
+
+    const unauthorizedRetry = await fetch(`${base}/v1/agent/sms/failed/retry`, {
+      method: 'POST',
+      body: JSON.stringify({ messageId: 'dead-letter-1' })
+    });
+    assert.equal(unauthorizedRetry.status, 401);
+
+    const retried = await fetch(`${base}/v1/agent/sms/failed/retry`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ messageId: 'dead-letter-1' })
+    });
+    assert.equal(retried.status, 202);
+
+    const unknown = await fetch(`${base}/v1/agent/sms/failed/retry`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ messageId: 'not-failed' })
+    });
+    assert.equal(unknown.status, 404);
+  }, { telerivetQueue });
+  assert.deepEqual(calls, [
+    { operation: 'list', limit: 25 },
+    { operation: 'retry', messageId: 'dead-letter-1' },
+    { operation: 'retry', messageId: 'not-failed' }
+  ]);
 });
 
 test('jobs: subscribe, unsubscribe, and independent instances', () => {
@@ -1252,6 +1402,10 @@ test('SMS language commands, opt-out, invalid input, deduplication, and throttli
 
   assert.equal((await runtime.handleInbound({ from: phone, text: 'Help' })).accepted, true);
   assert.match(adapter.list(0).at(-1).text, /LANGUAGE/);
+  await runtime.handleInbound({ from: phone, text: 'JOBS ON' });
+  assert.equal(jobs.list().length, 1);
+  await runtime.handleInbound({ from: phone, text: 'JOBS OFF' });
+  assert.equal(jobs.list().length, 0);
   assert.equal((await runtime.handleInbound({ from: phone, text: 'AFAAN OROMOO', messageId: 'm-1' })).language, 'om');
   assert.equal(runtime.getSession(phone).lang, 'om');
   const beforeDuplicate = adapter.list(0).length;
@@ -1303,6 +1457,534 @@ test('console SMS records Unicode segment metadata and webhook adapter reports g
   assert.equal(request.options.headers.authorization, 'Bearer secret-for-test');
   const failed = createWebhookSmsAdapter({ url: 'https://gateway.example/messages', fetchImpl: async () => new Response('', { status: 503 }) });
   await assert.rejects(failed.send({ to: '+251911000000', text: 'hi' }), /HTTP 503/);
+});
+
+test('Telerivet adapter uses the documented REST endpoint, Basic authentication, and JSON payload', async () => {
+  let request;
+  const adapter = createTelerivetSmsAdapter({
+    apiKey: 'test-api-key',
+    projectId: 'prj-test',
+    routeId: 'route-test',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return Response.json({ id: 'msg-test', status: 'queued' });
+    }
+  });
+  const result = await adapter.send({ to: '+251911000000', text: 'ሰላም' });
+  assert.equal(result.id, 'msg-test');
+  assert.equal(request.url, 'https://api.telerivet.com/v1/projects/prj-test/messages/send');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers.authorization, `Basic ${Buffer.from('test-api-key:').toString('base64')}`);
+  assert.deepEqual(JSON.parse(request.options.body), {
+    to_number: '+251911000000',
+    content: 'ሰላም',
+    route_id: 'route-test'
+  });
+
+  const failed = createTelerivetSmsAdapter({
+    apiKey: 'test-api-key',
+    projectId: 'prj-test',
+    fetchImpl: async () => new Response(JSON.stringify({ error: { code: 'unauthorized' } }), { status: 401 })
+  });
+  await assert.rejects(failed.send({ to: '+251911000000', text: 'Hello' }), (error) => {
+    assert.match(error.message, /HTTP 401/);
+    assert.equal(error.retryable, false);
+    return true;
+  });
+
+  const temporary = createTelerivetSmsAdapter({
+    apiKey: 'test-api-key',
+    projectId: 'prj-test',
+    fetchImpl: async () => new Response('', { status: 503 })
+  });
+  await assert.rejects(temporary.send({ to: '+251911000000', text: 'Hello' }), (error) => {
+    assert.equal(error.retryable, true);
+    assert.equal(error.status, 503);
+    return true;
+  });
+
+  const networkFailure = createTelerivetSmsAdapter({
+    apiKey: 'test-api-key',
+    projectId: 'prj-test',
+    fetchImpl: async () => { throw new Error('offline'); }
+  });
+  await assert.rejects(networkFailure.send({ to: '+251911000000', text: 'Hello' }), (error) => {
+    assert.equal(error.retryable, true);
+    assert.equal(error.code, 'provider_network_error');
+    return true;
+  });
+});
+
+function createTelerivetRedis() {
+  let time = 100000;
+  let nextId = 0;
+  const values = new Map();
+  const valueExpiry = new Map();
+  const hashes = new Map();
+  const hashExpiry = new Map();
+  const streams = new Map();
+  const pending = new Map();
+  const groups = new Set();
+  const retries = new Map();
+
+  function getString(key) {
+    const expires = valueExpiry.get(key);
+    if (expires !== undefined && expires <= time) {
+      values.delete(key);
+      valueExpiry.delete(key);
+    }
+    return values.get(key) || null;
+  }
+
+  function setString(key, value, options = {}) {
+    values.set(key, String(value));
+    if (options.PX !== undefined) valueExpiry.set(key, time + Number(options.PX));
+    else if (options.EX !== undefined) valueExpiry.set(key, time + Number(options.EX) * 1000);
+    else valueExpiry.delete(key);
+    return 'OK';
+  }
+
+  function getHash(key) {
+    const expires = hashExpiry.get(key);
+    if (expires !== undefined && expires <= time) {
+      hashes.delete(key);
+      hashExpiry.delete(key);
+    }
+    if (!hashes.has(key)) hashes.set(key, {});
+    return hashes.get(key);
+  }
+
+  function append(stream, message) {
+    const id = `${++nextId}-0`;
+    const entries = streams.get(stream) || [];
+    entries.push({ id, message: Object.fromEntries(Object.entries(message).map(([key, value]) => [key, String(value)])) });
+    streams.set(stream, entries);
+    return id;
+  }
+
+  function removeEntry(id) {
+    for (const [stream, entries] of streams) {
+      streams.set(stream, entries.filter((entry) => entry.id !== id));
+    }
+    pending.delete(id);
+  }
+
+  function entryById(id) {
+    for (const entries of streams.values()) {
+      const entry = entries.find((candidate) => candidate.id === id);
+      if (entry) return entry;
+    }
+    return null;
+  }
+
+  return {
+    async eval(script, { keys, arguments: args }) {
+      const operation = script.match(/-- operation:([\w_]+)/)?.[1];
+      if (operation === 'enqueue') {
+        const existing = getString(keys[0]);
+        if (existing) return [0, existing];
+        const id = append(keys[1], { job_key: keys[2], message_id: args[0], from: args[1], text: args[2] });
+        Object.assign(getHash(keys[2]), {
+          status: 'queued', attempts: '0', message_id: args[0], from: args[1],
+          text: args[2], created_at: args[3], updated_at: args[3], stream_id: id
+        });
+        setString(keys[0], 'queued');
+        return [1, id];
+      }
+      if (operation === 'start_processing') {
+        if (getString(keys[0]) !== args[0]) return [0, 'lock_lost'];
+        const state = getHash(keys[1]);
+        if (state.status === 'done' || state.status === 'dead') return [0, state.status];
+        if (!state.status) Object.assign(state, {
+          status: 'queued', attempts: '0', message_id: args[3], from: args[4],
+          text: args[5], created_at: args[1], updated_at: args[1]
+        });
+        const attempt = Number(state.attempts || 0) + 1;
+        Object.assign(state, { status: 'processing', attempts: String(attempt), updated_at: args[1], stream_id: args[2], worker: args[0] });
+        return [1, attempt];
+      }
+      if (operation === 'renew_lease') {
+        if (getString(keys[0]) !== args[0]) return 0;
+        setString(keys[0], args[0], { PX: args[1] });
+        return 1;
+      }
+      if (operation === 'release_lease') {
+        if (getString(keys[0]) !== args[0]) return 0;
+        values.delete(keys[0]);
+        valueExpiry.delete(keys[0]);
+        return 1;
+      }
+      if (operation === 'complete') {
+        if (getString(keys[0]) !== args[0]) return 0;
+        Object.assign(getHash(keys[1]), {
+          status: 'done', completed_at: args[3], updated_at: args[3],
+          last_error: '', error_code: '', next_attempt_at: ''
+        });
+        hashExpiry.set(keys[1], time + Number(args[2]) * 1000);
+        setString(keys[2], 'done', { EX: args[2] });
+        removeEntry(args[1]);
+        values.delete(keys[0]);
+        valueExpiry.delete(keys[0]);
+        return 1;
+      }
+      if (operation === 'fail_or_retry') {
+        if (getString(keys[0]) !== args[0]) return [0, 'lock_lost'];
+        removeEntry(args[1]);
+        const state = getHash(keys[1]);
+        if (args[7] === '1' || Number(args[2]) >= Number(args[3])) {
+          const deadId = append(keys[5], {
+            job_key: keys[1], message_id: state.message_id, from: state.from, text: state.text,
+            attempts: args[2], error_code: args[4], error: args[5], failed_at: args[9]
+          });
+          Object.assign(state, {
+            status: 'dead', last_error: args[5], error_code: args[4],
+            failed_at: args[9], dead_stream_id: deadId, next_attempt_at: '', updated_at: args[9]
+          });
+          setString(keys[2], 'dead');
+          values.delete(keys[0]);
+          valueExpiry.delete(keys[0]);
+          return [2, deadId];
+        }
+        Object.assign(state, {
+          status: 'retry', last_error: args[5], error_code: args[4],
+          next_attempt_at: args[6], updated_at: args[9]
+        });
+        retries.set(keys[1], Number(args[6]));
+        setString(keys[2], 'retry');
+        values.delete(keys[0]);
+        valueExpiry.delete(keys[0]);
+        return [1, args[6]];
+      }
+      if (operation === 'dispatch_retries') {
+        const due = [...retries.entries()]
+          .filter(([, retryAt]) => retryAt <= Number(args[0]))
+          .sort((a, b) => a[1] - b[1])
+          .slice(0, Number(args[1]));
+        for (const [jobKey] of due) {
+          const state = getHash(jobKey);
+          if (state.status === 'retry') {
+            const id = append(keys[1], { job_key: jobKey, message_id: state.message_id, from: state.from, text: state.text });
+            Object.assign(state, { status: 'queued', stream_id: id, next_attempt_at: '', updated_at: args[0] });
+            setString(`inclusive:sms:telerivet:message:${jobKey.split(':').pop()}`, 'queued');
+          }
+          retries.delete(jobKey);
+        }
+        return due.length;
+      }
+      if (operation === 'retry_failed') {
+        const state = getHash(keys[0]);
+        if (state.status !== 'dead') return [0, state.status || 'missing'];
+        if (state.dead_stream_id) removeEntry(state.dead_stream_id);
+        const id = append(keys[2], { job_key: keys[0], message_id: args[0], from: state.from, text: state.text });
+        Object.assign(state, {
+          status: 'queued', attempts: '0', updated_at: args[1], stream_id: id,
+          last_error: '', error_code: '', failed_at: '', dead_stream_id: '', next_attempt_at: ''
+        });
+        retries.delete(keys[0]);
+        setString(keys[1], 'queued');
+        return [1, id];
+      }
+      throw new Error(`Unknown fake Redis script operation: ${operation}`);
+    },
+    async get(key) { return getString(key); },
+    async set(key, value, options = {}) {
+      if (options.NX && getString(key) !== null) return null;
+      return setString(key, value, options);
+    },
+    async hGetAll(key) { return { ...getHash(key) }; },
+    async xGroupCreate(stream, group) {
+      const key = `${stream}:${group}`;
+      if (groups.has(key)) throw new Error('BUSYGROUP Consumer Group name already exists');
+      groups.add(key);
+    },
+    async xReadGroup(_group, consumer, streamArgs, options = {}) {
+      const stream = streamArgs[0].key;
+      const entries = (streams.get(stream) || []).filter((entry) => !pending.has(entry.id)).slice(0, options.COUNT || 1);
+      if (!entries.length) {
+        await new Promise((resolve) => setTimeout(resolve, 3));
+        return null;
+      }
+      for (const entry of entries) pending.set(entry.id, { consumer, deliveredAt: time });
+      return [{ name: stream, messages: entries }];
+    },
+    async xAutoClaim(stream, _group, consumer, minIdle, _start, options = {}) {
+      const messages = [];
+      for (const entry of streams.get(stream) || []) {
+        const delivery = pending.get(entry.id);
+        if (!delivery || time - delivery.deliveredAt < Number(minIdle)) continue;
+        pending.set(entry.id, { consumer, deliveredAt: time });
+        messages.push(entry);
+        if (messages.length >= (options.COUNT || 1)) break;
+      }
+      return { messages };
+    },
+    async xAck(_stream, _group, id) { const existed = pending.delete(id); return existed ? 1 : 0; },
+    async xDel(_stream, id) { const existed = entryById(id); removeEntry(id); return existed ? 1 : 0; },
+    async xRange(stream, _start, _end, options = {}) { return (streams.get(stream) || []).slice(0, options.COUNT || 100); },
+    seedPending(id, consumer = 'stopped-worker') { pending.set(id, { consumer, deliveredAt: time }); },
+    seedState(key, fields) { Object.assign(getHash(key), fields); },
+    advance(ms) { time += ms; },
+    currentTime() { return time; },
+    readState(key) { return { ...getHash(key) }; },
+    delete(key) { values.delete(key); valueExpiry.delete(key); }
+  };
+}
+
+function testQueueKeys(messageId) {
+  const hash = createHash('sha256').update(messageId).digest('hex');
+  return {
+    state: `inclusive:sms:telerivet:state:${hash}`,
+    dedupe: `inclusive:sms:telerivet:message:${hash}`
+  };
+}
+
+function createMockedTelerivetRuntime(fetchImpl) {
+  const adapter = createTelerivetSmsAdapter({
+    apiKey: 'mock-key',
+    projectId: 'mock-project',
+    fetchImpl
+  });
+  return createSmsRuntime({
+    chat: async () => ({ answer: 'mock answer', escalate: false }),
+    store: createHandoffStore(),
+    jobStore: createJobStore(),
+    sendOutbound: (to, text) => adapter.send({ to, text })
+  });
+}
+
+async function waitForTest(predicate, message) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.fail(message);
+}
+
+test('Telerivet Redis queue deduplicates webhook IDs and processes one response', async () => {
+  const redis = createTelerivetRedis();
+  const received = [];
+  const queue = createTelerivetSmsQueue({
+    client: redis,
+    runtime: { async handleInbound(message, options) { received.push({ message, options }); return { accepted: true }; } }
+  });
+  const message = { messageId: 'queue-message-1', from: '+251911000000', text: 'HELP' };
+  assert.equal((await queue.enqueue(message)).duplicate, false);
+  assert.equal((await queue.enqueue(message)).duplicate, true);
+  await queue.start();
+  try {
+    await waitForTest(() => redis.readState(testQueueKeys(message.messageId).state).status === 'done', 'queued SMS was not completed');
+  } finally {
+    await queue.stop();
+  }
+  assert.equal(received.length, 1);
+  assert.deepEqual(received[0], {
+    message: { from: message.from, text: message.text, messageId: message.messageId },
+    options: { retryDelivery: true }
+  });
+});
+
+test('Telerivet queue retries temporary provider failures with backoff and eventually succeeds', async () => {
+  const redis = createTelerivetRedis();
+  let attempts = 0;
+  const runtime = createMockedTelerivetRuntime(async () => {
+    attempts += 1;
+    return attempts < 3
+      ? new Response('', { status: 503 })
+      : Response.json({ id: 'mock-sent-message' });
+  });
+  const queue = createTelerivetSmsQueue({
+    client: redis,
+    maxAttempts: 3,
+    retryBaseMs: 5,
+    retryMaxMs: 20,
+    leaseMs: 3000,
+    claimIdleMs: 1000,
+    now: () => redis.currentTime(),
+    runtime,
+    logError: () => {}
+  });
+  const messageId = 'temporary-retry-1';
+  await queue.enqueue({ messageId, from: '+251911000000', text: 'HELP' });
+  await queue.start();
+  try {
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'retry', 'first temporary failure was not scheduled');
+    let state = redis.readState(testQueueKeys(messageId).state);
+    assert.equal(Number(state.next_attempt_at) - Number(state.updated_at), 5);
+    redis.advance(5);
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'retry' && redis.readState(testQueueKeys(messageId).state).attempts === '2', 'second temporary failure was not scheduled');
+    state = redis.readState(testQueueKeys(messageId).state);
+    assert.equal(Number(state.next_attempt_at) - Number(state.updated_at), 10);
+    redis.advance(10);
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'done', 'temporary failure was not retried');
+  } finally {
+    await queue.stop();
+  }
+  assert.equal(attempts, 3);
+  assert.equal(redis.readState(testQueueKeys(messageId).state).attempts, '3');
+});
+
+test('Telerivet queue moves exhausted temporary failures to dead letters', async () => {
+  const redis = createTelerivetRedis();
+  const queue = createTelerivetSmsQueue({
+    client: redis,
+    maxAttempts: 2,
+    retryBaseMs: 5,
+    leaseMs: 3000,
+    claimIdleMs: 1000,
+    now: () => redis.currentTime(),
+    runtime: {
+      async handleInbound() {
+        throw new TelerivetSmsError('temporary provider error', { code: 'provider_network_error', retryable: true });
+      }
+    },
+    logError: () => {}
+  });
+  const messageId = 'exhausted-retry-1';
+  await queue.enqueue({ messageId, from: '+251911000000', text: 'HELP' });
+  await queue.start();
+  try {
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'retry', 'first failure was not retried');
+    redis.advance(5);
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'dead', 'exhausted job was not dead-lettered');
+  } finally {
+    await queue.stop();
+  }
+  const [failed] = await queue.listFailed();
+  assert.equal(failed.messageId, messageId);
+  assert.equal(failed.attempts, 2);
+});
+
+test('Telerivet queue dead-letters permanent failures and permits an explicit retry', async () => {
+  const redis = createTelerivetRedis();
+  let fail = true;
+  let attempts = 0;
+  const runtime = createMockedTelerivetRuntime(async () => {
+    attempts += 1;
+    return fail
+      ? new Response(JSON.stringify({ error: { code: 'unauthorized' } }), { status: 401 })
+      : Response.json({ id: 'mock-sent-message' });
+  });
+  const queue = createTelerivetSmsQueue({
+    client: redis,
+    retryBaseMs: 5,
+    leaseMs: 3000,
+    claimIdleMs: 1000,
+    runtime,
+    logError: () => {}
+  });
+  const messageId = 'permanent-failure-1';
+  await queue.enqueue({ messageId, from: '+251911000000', text: 'HELP' });
+  await queue.start();
+  try {
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'dead', 'permanent failure was not dead-lettered');
+    const [failed] = await queue.listFailed();
+    assert.equal(failed.messageId, messageId);
+    assert.equal(failed.errorCode, 'provider_http_error');
+    assert.equal(failed.attempts, 1);
+    const retried = await queue.retryFailed(messageId);
+    assert.equal(retried.retried, true);
+    assert.equal(typeof retried.status, 'string');
+    fail = false;
+    await waitForTest(() => redis.readState(testQueueKeys(messageId).state).status === 'done', 'manually retried dead letter did not complete');
+  } finally {
+    await queue.stop();
+  }
+  assert.equal(attempts, 2);
+  assert.deepEqual(await queue.listFailed(), []);
+});
+
+test('Telerivet queue recovers a pending job after the previous worker lease expires', async () => {
+  const redis = createTelerivetRedis();
+  const messageId = 'restart-recovery-1';
+  const message = { messageId, from: '+251911000000', text: 'HELP' };
+  const enqueueQueue = createTelerivetSmsQueue({ client: redis, runtime: { async handleInbound() { return { accepted: true }; } } });
+  const queued = await enqueueQueue.enqueue(message);
+  const keys = testQueueKeys(messageId);
+  redis.seedPending(queued.streamId);
+  redis.seedState(keys.state, {
+    status: 'processing', attempts: '1', message_id: messageId,
+    from: message.from, text: message.text
+  });
+  await redis.set(`${keys.state}:lease`, 'abandoned-worker', { PX: 1000 });
+  redis.advance(2000);
+
+  let processed = 0;
+  const restarted = createTelerivetSmsQueue({
+    client: redis,
+    leaseMs: 3000,
+    claimIdleMs: 1000,
+    runtime: { async handleInbound() { processed += 1; return { accepted: true }; } }
+  });
+  await restarted.start();
+  try {
+    await waitForTest(() => redis.readState(keys.state).status === 'done', 'restarted worker did not recover pending job');
+  } finally {
+    await restarted.stop();
+  }
+  assert.equal(processed, 1);
+  assert.equal(redis.readState(keys.state).attempts, '2');
+});
+
+test('Telerivet queue lease prevents concurrent workers from handling the same message', async () => {
+  const redis = createTelerivetRedis();
+  const messageId = 'concurrent-worker-1';
+  const message = { messageId, from: '+251911000000', text: 'HELP' };
+  const enqueueQueue = createTelerivetSmsQueue({ client: redis, runtime: { async handleInbound() { return { accepted: true }; } } });
+  const queued = await enqueueQueue.enqueue(message);
+  const keys = testQueueKeys(messageId);
+  redis.seedPending(queued.streamId);
+  redis.seedState(keys.state, { status: 'processing', attempts: '1', message_id: messageId, from: message.from, text: message.text });
+  await redis.set(`${keys.state}:lease`, 'active-worker', { PX: 5000 });
+  redis.advance(1100);
+
+  let processed = 0;
+  const competingWorker = createTelerivetSmsQueue({
+    client: redis,
+    leaseMs: 5000,
+    claimIdleMs: 1000,
+    runtime: { async handleInbound() { processed += 1; return { accepted: true }; } }
+  });
+  await competingWorker.start();
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(processed, 0, 'a live lease prevents a second worker from entering the runtime');
+    redis.delete(`${keys.state}:lease`);
+    redis.advance(1100);
+    await waitForTest(() => redis.readState(keys.state).status === 'done', 'message was not recovered after lease release');
+  } finally {
+    await competingWorker.stop();
+  }
+  assert.equal(processed, 1);
+});
+
+test('Telerivet queue shutdown waits for active work and preserves completion', async () => {
+  const redis = createTelerivetRedis();
+  let releaseWork;
+  let enteredWork;
+  const entered = new Promise((resolve) => { enteredWork = resolve; });
+  const queue = createTelerivetSmsQueue({
+    client: redis,
+    leaseMs: 3000,
+    claimIdleMs: 1000,
+    runtime: {
+      async handleInbound() {
+        enteredWork();
+        return new Promise((resolve) => { releaseWork = resolve; });
+      }
+    }
+  });
+  const messageId = 'shutdown-active-1';
+  await queue.enqueue({ messageId, from: '+251911000000', text: 'HELP' });
+  await queue.start();
+  await entered;
+  let stopped = false;
+  const stopping = queue.stop().then(() => { stopped = true; });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(stopped, false);
+  releaseWork({ accepted: true });
+  await stopping;
+  assert.equal(redis.readState(testQueueKeys(messageId).state).status, 'done');
 });
 
 test('Telegram command parser supports new commands, bot mentions, and all language selections', () => {

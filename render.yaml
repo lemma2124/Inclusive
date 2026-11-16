@@ -44,3 +44,13 @@ services:
         sync: false
       - key: SMS_WEBHOOK_KEY
         sync: false
+      - key: TELERIVET_API_KEY
+        sync: false
+      - key: TELERIVET_PROJECT_ID
+        sync: false
+      - key: TELERIVET_ROUTE_ID
+        sync: false
+      - key: TELERIVET_WEBHOOK_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
