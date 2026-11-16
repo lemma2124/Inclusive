@@ -86,11 +86,31 @@ Job content should be reviewed and updated by maintainers. Do not treat sample/l
 ### 2.7 Communication Channels
 
 - **Web application and embeddable widget:** primary learner interface, course chat, accommodations, and web speech controls.
-- **Telegram bot:** course help, voice transcription, optional spoken replies, human-support flow, job-alert commands, and accommodation requests. Course content is reviewed in English and Amharic. Cloud providers are instructed to answer in English, Amharic, Afaan Oromo, or Tigrinya from retrieved material, but quality in Oromo and Tigrinya is not independently validated; offline mode offers a language-matched fallback instead of returning untranslated source text.
+- **Telegram bot:** learners can ask course questions by text or voice, choose a language, request spoken replies where available, subscribe to locally maintained career resources, and ask for human or interview-accommodation support. Course answers use the existing retrieval API and cite sources when available. English and Amharic course content is reviewed; cloud-generated Oromo and Tigrinya wording is not independently validated. If offline mode cannot answer reliably in the selected language, it offers a language-matched fallback rather than returning untranslated source text.
 - **SMS:** text-only route with a console simulator for local testing or a configurable outbound webhook adapter. SMS does not generate audio.
 - **Support console:** protected staff interface for handoffs and job-alert broadcasts.
 
 Channel capabilities differ, and real Telegram or SMS delivery requires the relevant credentials and provider setup.
+
+#### Telegram commands and learner flow
+
+Send `/start` to begin and `/help` to see the command list. `/start` also displays a keyboard for common actions.
+
+| Command | What it does |
+| --- | --- |
+| `/learn your question` | Ask a course question. Learners can also send a typed question directly. Answers use the shared course assistant, include citations when available, and offer human help when course material is insufficient. |
+| `/language` | Open inline buttons for English, Amharic, Afaan Oromo, and Tigrinya. Existing shortcuts such as `/en`, `/am`, `/om`, and `/ti` remain available. |
+| `/voice` / `/text` | Choose spoken replies or text-only replies. Addis spoken voices are available for Amharic, Afaan Oromo, and Tigrinya when configured and available; English speech output is not supported. |
+| Voice note or audio | With `ADDIS_API_KEY`, send an audio recording up to 8 MB and 30 seconds. The bot shows the transcript first; submit, edit, or cancel it before it reaches course chat. Pending transcripts expire after five minutes. |
+| `/support` or `/human` | Ask to speak with a person. The bot explains what will be shared and waits for consent before creating a support request. An agent can reply in the protected support console. |
+| `/end` | End an active human-support session. |
+| `/cancel` | Cancel a pending transcript, accommodation request, or support-consent prompt; during an active support session it ends the session. |
+| `/jobs` | Show course-grounded career information and subscribe to Telegram job alerts. The bot requests the answer in the selected language while searching the locally maintained English and Amharic sources; generated Oromo and Tigrinya wording is not independently reviewed. This is not a verified live vacancy feed. |
+| `/unsubscribe` | Stop Telegram job alerts. |
+| `/accommodation` | Read general interview-accommodation guidance, then describe a request to send to human support. The bot does not guarantee or arrange accommodations. |
+| `/help` | Show available commands. |
+
+Language, response mode, conversation history, pending transcripts, handoffs, processed update IDs, and job subscriptions are held in memory only. They reset when the service restarts. Long text replies are split into ordered Telegram messages. Duplicate update IDs are suppressed only while the current process is running; durable deduplication and preference storage are not configured.
 
 ### 2.8 Accessibility and Inclusive Design
 
