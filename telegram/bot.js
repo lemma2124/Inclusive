@@ -61,6 +61,11 @@ const STRINGS = {
         voiceUnavailable: 'English voice playback is not available. Your answer is shown as text; use /text to turn off voice replies.',
         speechLanguageUnavailable: 'Speech recognition is not available for this language. Choose English, Amharic, Afaan Oromo, or Tigrinya with /language.',
         transcriptionFailed: 'I could not transcribe that recording. Please try a shorter, clearer recording or type your question.',
+        speechAuthFailed: 'Speech recognition could not authenticate. Please contact the service administrator or type your question.',
+        speechProviderUnavailable: 'Speech recognition is temporarily unavailable. Please try again later or type your question.',
+        speechFormatUnsupported: 'The speech service could not process this recording. Try a short voice note or type your question.',
+        audioDownloadFailed: 'I could not download that recording from Telegram. Please send it again or type your question.',
+        invalidAudio: 'I could not read that audio format. Please send a voice note or type your question.',
         audioTooLarge: 'That audio file is too large. Send a recording under 8 MB.',
         audioTooLong: 'That recording is too long. Keep it to 30 seconds or less.',
             speechRateLimited: 'Too many speech requests. Please wait a minute and try again.',
@@ -112,6 +117,11 @@ const STRINGS = {
         voiceUnavailable: 'ለእንግሊዝኛ የድምፅ መልስ አይገኝም። መልሱ በጽሑፍ ተልኳል።',
         speechLanguageUnavailable: 'ለዚህ ቋንቋ የድምፅ መለየት አይገኝም። /language በመጠቀም ቋንቋ ይምረጡ።',
         transcriptionFailed: 'ድምፁን ወደ ጽሑፍ መቀየር አልተቻለም። እባክዎ አጭርና ግልጽ ድምፅ ይላኩ ወይም ይጻፉ።',
+        speechAuthFailed: 'የድምፅ መለየት አገልግሎት ማረጋገጥ አልቻለም። እባክዎ አስተዳዳሪውን ያነጋግሩ ወይም ጥያቄዎን ይጻፉ።',
+        speechProviderUnavailable: 'የድምፅ መለየት አገልግሎት ለጊዜው አይገኝም። እባክዎ ቆይተው ይሞክሩ ወይም ይጻፉ።',
+        speechFormatUnsupported: 'የድምፅ አገልግሎቱ ይህን ቅጂ ማስኬድ አልቻለም። አጭር የድምፅ መልዕክት ይላኩ ወይም ይጻፉ።',
+        audioDownloadFailed: 'ይህን ድምፅ ከTelegram ማውረድ አልተቻለም። እባክዎ እንደገና ይላኩ ወይም ይጻፉ።',
+        invalidAudio: 'ይህን የድምፅ ቅርጸት ማንበብ አልተቻለም። የድምፅ መልዕክት ይላኩ ወይም ይጻፉ።',
         audioTooLarge: 'የድምፅ ፋይሉ በጣም ትልቅ ነው። ከ8 MB በታች ይላኩ።',
         audioTooLong: 'ድምፁ በጣም ረጅም ነው። 30 ሰከንድ ወይም ከዚያ በታች ይላኩ።',
             speechRateLimited: 'ብዙ የድምፅ ጥያቄዎች ተልከዋል። እባክዎ ቆይተው ይሞክሩ።',
@@ -143,6 +153,13 @@ const SHARED_SMS_KEYS = {
     jobsSubscribed: 'jobsSubscribed', jobsUnsubscribed: 'jobsUnsubscribed',
     accommodationPrompt: 'accommodationPrompt', accommodationCancelled: 'accommodationCancelled',
     accommodationWaiting: 'accommodationWaiting'
+};
+const JOB_RETRIEVAL_QUERY = 'Show available job information and interview accommodation guidance.';
+const JOB_QUESTIONS = {
+    en: JOB_RETRIEVAL_QUERY,
+    am: 'የሚገኙ የሥራ መረጃዎችን እና የቃለ መጠይቅ ድጋፍን አሳየኝ።',
+    om: 'Odeeffannoo hojii argamu fi gorsa deeggarsa afeerraa hojii naaf agarsiisi.',
+    ti: 'ሓበሬታ ስራሕን ናይ ቃለ መሕትት ሓገዝን ኣርእየኒ።'
 };
 
 STRINGS.om = {
@@ -544,7 +561,21 @@ async function handleVoice(chatId, s, message, context) {
             ]] }
         });
     } catch (e) {
+        const code = e && e.code;
+        const safeCodes = new Set([
+            'speech_disabled', 'speech_auth_failed', 'speech_payment_required', 'speech_busy',
+            'speech_network_error', 'speech_timeout', 'speech_request_unsupported',
+            'speech_provider_error', 'speech_empty_transcript', 'unsupported_speech_language',
+            'audio_too_large', 'audio_too_long', 'audio_download_failed',
+            'unsupported_audio_format', 'invalid_audio', 'audio_required'
+        ]);
+        console.warn(`Telegram speech processing failed: ${safeCodes.has(code) ? code : 'unknown_error'}`);
         const key = e.code === 'speech_disabled' ? 'speechUnavailable' :
+            e.code === 'speech_auth_failed' ? 'speechAuthFailed' :
+                ['speech_network_error', 'speech_timeout', 'speech_busy', 'speech_provider_error', 'speech_payment_required'].includes(e.code) ? 'speechProviderUnavailable' :
+                    e.code === 'speech_request_unsupported' ? 'speechFormatUnsupported' :
+                        e.code === 'audio_download_failed' ? 'audioDownloadFailed' :
+                            ['unsupported_audio_format', 'invalid_audio', 'audio_required'].includes(e.code) ? 'invalidAudio' :
             e.code === 'audio_too_large' ? 'audioTooLarge' :
                 e.code === 'audio_too_long' ? 'audioTooLong' :
                     e.code === 'unsupported_speech_language' ? 'speechLanguageUnavailable' : 'transcriptionFailed';
@@ -654,11 +685,13 @@ async function handleUpdate(u, context = defaultRuntime) {
     }
     if (command === '/jobs') {
         try {
-            await context.api('POST', '/v1/jobs/subscribe', { channel: 'telegram', contact: String(chatId), lang: s.lang || 'en' });
+            const lang = s.lang || 'en';
+            await context.api('POST', '/v1/jobs/subscribe', { channel: 'telegram', contact: String(chatId), lang });
             const jobs = await context.api('POST', '/v1/chat', {
-                message: s.lang === 'am' ? 'የሚገኙ የሥራ መረጃዎችን እና የቃለ መጠይቅ ድጋፍን አሳየኝ።' : 'Show available job information and interview accommodation guidance.',
-                lang: s.lang || 'en',
-                history: s.history.slice(-4)
+                message: JOB_QUESTIONS[lang] || JOB_QUESTIONS.en,
+                lang,
+                history: s.history.slice(-4),
+                ...(['om', 'ti'].includes(lang) ? { retrievalQuery: JOB_RETRIEVAL_QUERY } : {})
             });
             const sources = jobs.citations && jobs.citations.length ? `\n\n${t(s, 'sources')} ${jobs.citations.map((c) => c.title).join('; ')}` : '';
             return sendAnswer(chatId, s, `${t(s, 'jobsDisclaimer')}\n\n${jobs.answer}${sources}\n\n${t(s, 'jobsSubscribed')}`, undefined, context);
