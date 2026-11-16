@@ -10,35 +10,36 @@ export function createOffline() {
       const query = lastMsg ? lastMsg.content.toLowerCase() : '';
       const rawText = passages[0].text;
       
-      // Split by newlines, periods, question marks, or Ethiopic punctuation
-      const sentences = rawText.split(/(?<=[.!?።፧\n])\s+/).map(s => s.trim()).filter(s => s.length > 5);
+      // 1. Split the text into paragraphs (blocks separated by newlines)
+      const paragraphs = rawText.split(/\n+/).map(p => p.trim()).filter(p => p.length > 10);
       
-      if (!sentences.length) return { text: rawText.slice(0, 300) + '... [1]' };
+      if (!paragraphs.length) return { text: rawText.slice(0, 300) + '... [1]' };
 
-      let bestSentence = sentences[0];
+      let bestParagraph = paragraphs[0];
       let bestScore = -1;
       
+      // 2. Score each paragraph based on keyword matches
       if (query) {
         const qWords = query.split(/\s+/).filter(w => w.length > 3);
-        for (const s of sentences) {
+        for (const p of paragraphs) {
           let score = 0;
-          const lowerS = s.toLowerCase();
+          const lowerP = p.toLowerCase();
           for (const w of qWords) {
-            if (lowerS.includes(w)) score++;
+            if (lowerP.includes(w)) score++;
           }
           if (score > bestScore) {
             bestScore = score;
-            bestSentence = s;
+            bestParagraph = p;
           }
         }
       }
       
-      // If no good match was found, just return the first 2 sentences so it doesn't dump everything
+      // 3. If no good match was found, return the first two paragraphs so it doesn't dump everything
       if (bestScore <= 0) {
-         bestSentence = sentences.slice(0, 2).join(' ');
+         bestParagraph = paragraphs.slice(0, 2).join('\n\n');
       }
 
-      return { text: bestSentence + ' [1]' };
+      return { text: bestParagraph + ' [1]' };
     }
   };
 }

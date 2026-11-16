@@ -100,11 +100,10 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     const learnerLang = SUPPORTED_LANGUAGES.has(lang) ? lang : detectLang(asked);
     const courseContext = normalizeCourseContext(context);
 
-    // Split the huge page context into smaller, searchable chunks
+    // --- CHUNKING LOGIC ---
     let extraPassages = [];
     if (courseContext) {
       const rawText = courseContext.text;
-      // Split by double newlines, or single newlines if the text is dense
       const chunks = rawText.split(/\n\s*\n|\n/).map(c => c.trim()).filter(c => c.length > 30);
 
       extraPassages = chunks.map((chunk, index) => ({
@@ -119,23 +118,20 @@ export function createChat({ retriever, router, minCoverage = 0.3 }) {
     const { hits, lang: contentLang } = retriever.search(asked, learnerLang, {
       limit: 3,
       minCoverage,
-      extraPassages: extraPassages // Now we pass the array of 50 small chunks!
+      extraPassages: extraPassages
     });
+
     if (!hits.length) {
-      // Nothing in the course covers this: do not call a model, offer a human.
       return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: 'none', lang: learnerLang };
     }
 
     const passages = hits.map((h) => h.passage);
+    const messages = [{ role: 'user', content: asked }];
 
-    // We only send the current question to the AI.
-    // The course context (passages) already contains the knowledge it needs.
-    const messages = [
-      { role: 'user', content: asked }
-    ];
     const out = await router.generate({ system: buildSystemPrompt(learnerLang, passages), messages, passages, lang: learnerLang });
 
-    // NEW: Prevent crash if the AI returns an empty or invalid response
+    // --- CRITICAL SAFETY CHECK ---
+    // If Gemini fails and returns nothing, this prevents a 500 crash!
     if (!out || typeof out.text !== 'string' || !out.text.trim()) {
       return { answer: FALLBACK[learnerLang], citations: [], grounded: false, escalate: true, provider: out.provider || 'none', lang: learnerLang };
     }

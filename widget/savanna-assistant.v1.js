@@ -481,8 +481,16 @@
           if (l.href) {
             var link = el('a', '', l.text);
             link.href = l.href;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
+            // Don't open in a new tab if it's a same-page anchor (#)
+            if (l.href.startsWith('#')) {
+              link.addEventListener('click', function (e) {
+                e.preventDefault();
+                var target = document.querySelector(l.href);
+                if (target) target.scrollIntoView({ behavior: 'smooth' });
+              });
+            } else {
+              link.target = '_self'; // Open in same tab
+            }
             if (l.lang) { link.setAttribute('lang', l.lang); }
             li.appendChild(link);
           } else {
@@ -607,13 +615,13 @@
         if (this._courseContext) { request.context = this._courseContext; }
         var data = await this._call('POST', '/v1/chat', request, '', 25000);
         if (typeof data.answer !== 'string') { throw new Error('bad_response'); }
-        
-                // NEW: Warn in the console if Gemini failed and it fell back to offline
+
+        // NEW: Warn in the console if Gemini failed and it fell back to offline
         if (data.provider === 'offline') {
           console.warn('⚠️ INCLUSIVE: Gemini is out of quota or failed. Using offline fallback.');
         }
-        
-        
+
+
         var links = (data.citations || []).map(function (c) {
           return { text: c.title, href: self._href(c.url), lang: c.lang };
         });
